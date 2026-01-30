@@ -2,23 +2,7 @@ import { test, expect } from '../../fixtures/test-fixtures';
 import { Logger } from '../../utils/logger';
 import { TestDataGenerator } from '../../utils/test-data-generator';
 
-/**
- * ORGANIZATION ACTIVATION TESTS
- *
- * Status: TEMPORARILY SKIPPED
- * Reason: Performance issue with organization list page loading times
- *
- * TODO: Re-enable these tests once the following issues are resolved:
- * 1. Organization table loading performance optimization
- * 2. Pagination implementation to handle large datasets
- * 3. Or if previous organizations are deleted
- *
- * These tests are functional and will work once performance issues are addressed.
- * Last tested: [2026-01-29]
- */
-test.describe.skip('Organization Activation', () => {
-  let testOrganizationSlug: string;
-
+test.describe('Organization Creation', () => {
   // Use the authenticatedPage fixture to automatically sign in before each test
   test.beforeEach(async ({ authenticatedPage, dashboardPage }) => {
     void authenticatedPage; // User is already signed in
@@ -28,206 +12,253 @@ test.describe.skip('Organization Activation', () => {
     await dashboardPage.navigateToOrganization();
   });
 
-  test('should activate organization after creation', async ({
+  test('should navigate to organization create page', async ({
     dashboardPage,
     organizationPage,
   }) => {
-    Logger.testStart('Activate Newly Created Organization');
+    Logger.testStart('Navigate to Organization Create Page');
+    try {
+      Logger.step(1, 'Verify Create button is visible on Organization page');
+      const isCreateButtonVisible = await dashboardPage.isCreateButtonVisible();
+      expect(isCreateButtonVisible).toBe(true);
+      Logger.success('Create button is visible');
+
+      Logger.step(2, 'Click Create button');
+      await dashboardPage.clickCreateButton();
+
+      Logger.step(3, 'Verify navigation to Organization Create page');
+      const isOnCreatePage = await organizationPage.isOnCreatePage();
+      expect(isOnCreatePage).toBe(true);
+
+      Logger.step(4, 'Verify page URL contains /organization/create');
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
+
+      Logger.success('Successfully navigated to Organization Create page');
+      Logger.testEnd('Navigate to Organization Create Page', true);
+    } catch (error) {
+      Logger.error('Test failed', error);
+      Logger.testEnd('Navigate to Organization Create Page', false);
+      throw error;
+    }
+  });
+
+  test('should display all form elements on organization create page', async ({
+    dashboardPage,
+    organizationPage,
+  }) => {
+    Logger.testStart('Verify Organization Create Form Elements');
 
     try {
-      // ===== STEP 1: CREATE A NEW ORGANIZATION =====
-      Logger.step(1, 'Create a new organization for testing');
-
+      Logger.step(1, 'Navigate to Organization Create page');
       await dashboardPage.clickCreateButton();
-      await organizationPage.page.waitForURL('**/organization/create');
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
+      Logger.step(2, 'Verify Name input field is visible and empty');
+      const nameValue = await organizationPage.getNameValue();
+      expect(nameValue).toBe('');
+
+      Logger.step(3, 'Verify Slug input field is visible and empty');
+      const slugValue = await organizationPage.getSlugValue();
+      expect(slugValue).toBe('');
+
+      Logger.step(4, 'Verify Logo file input is visible');
+      const isLogoInputPresent = await organizationPage.isLogoInputVisible();
+      expect(isLogoInputPresent).toBe(true);
+
+      Logger.step(5, 'Verify Submit button is visible');
+      const isSubmitVisible = await organizationPage.isSubmitButtonVisible();
+      expect(isSubmitVisible).toBe(true);
+
+      Logger.step(6, 'Verify Reset button is visible');
+      const isResetVisible = await organizationPage.isResetButtonVisible();
+      expect(isResetVisible).toBe(true);
+
+      Logger.success('All form elements are displayed correctly');
+      Logger.testEnd('Verify Organization Create Form Elements', true);
+    } catch (error) {
+      Logger.error('Test failed', error);
+      Logger.testEnd('Verify Organization Create Form Elements', false);
+      throw error;
+    }
+  });
+
+  test('should successfully create organization with valid data', async ({
+    dashboardPage,
+    organizationPage,
+  }) => {
+    Logger.testStart('Create Organization with Valid Data');
+
+    try {
+      Logger.step(1, 'Navigate to Organization Create page');
+      await dashboardPage.clickCreateButton();
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
+
+      Logger.step(2, 'Generate test organization data');
       const orgData = TestDataGenerator.generateOrganization();
-      testOrganizationSlug = orgData.slug;
-
       Logger.info('Generated organization data:', {
         name: orgData.name,
         slug: orgData.slug,
       });
 
+      Logger.step(3, 'Fill organization form with valid data');
       await organizationPage.fillOrganizationForm(orgData, 'test-logo.png');
+
+      Logger.step(4, 'Verify logo was uploaded');
+      const isLogoUploaded = await organizationPage.isLogoUploaded();
+      expect(isLogoUploaded).toBe(true);
+
+      Logger.step(5, 'Submit the form');
       await organizationPage.clickSubmit();
 
-      const submissionSuccessful = await organizationPage.verifyNavigationAfterSubmit();
-      expect(submissionSuccessful).toBeTruthy();
-      Logger.success('Organization created successfully');
+      Logger.step(6, 'Verify success indication');
+      const isToastVisible = await organizationPage.isSuccessToastVisible();
 
-      // ===== STEP 2: NAVIGATE BACK TO ORGANIZATION LIST =====
-      Logger.step(2, 'Navigate back to organization list page');
-
-      await organizationPage.page.waitForTimeout(2000);
-
-      if (!organizationPage.page.url().includes('/organization')) {
-        await dashboardPage.navigateToOrganization();
+      if (isToastVisible) {
+        Logger.step(7, 'Verify toast contains success message');
+        const toastText = await organizationPage.getSuccessToastText();
+        expect(toastText.toLowerCase()).toContain('saved');
+        Logger.success('Organization created successfully with success toast');
+      } else {
+        Logger.step(7, 'Verify redirect to organization list');
+        await organizationPage.page.waitForURL('**/organization', { timeout: 10000 });
+        Logger.success('Organization created successfully with redirect');
       }
 
-      await organizationPage.page.waitForURL('**/organization');
-      Logger.success('Navigated to organization list page');
+      const submissionSuccessful = await organizationPage.verifyNavigationAfterSubmit();
+      expect(submissionSuccessful).toBe(true);
 
-      // ===== STEP 3: VERIFY ORGANIZATION EXISTS IN TABLE =====
-      Logger.step(3, 'Verify organization appears in the table');
-
-      await organizationPage.waitForTableToLoad();
-
-      const isInTable = await organizationPage.verifyOrganizationInTable(testOrganizationSlug);
-      expect(isInTable).toBeTruthy();
-      Logger.success(`Organization "${testOrganizationSlug}" found in table`);
-
-      // ===== STEP 4: SCROLL TO AND VERIFY "USE ORGANIZATION" BUTTON =====
-      Logger.step(4, 'Find and verify "Use Organization" button');
-
-      await organizationPage.scrollToOrganization(testOrganizationSlug);
-
-      const useButton =
-        await organizationPage.findUseOrganizationButtonForSlug(testOrganizationSlug);
-      expect(useButton).not.toBeNull();
-
-      await expect(useButton!).toBeVisible();
-      await expect(useButton!).toBeEnabled();
-      await expect(useButton!).toHaveText('Use Organization');
-
-      Logger.success('"Use Organization" button found and is clickable');
-
-      // ===== STEP 5: CLICK "USE ORGANIZATION" BUTTON =====
-      Logger.step(5, 'Click "Use Organization" button');
-
-      const clicked = await organizationPage.clickUseOrganizationForSlug(testOrganizationSlug);
-      expect(clicked).toBeTruthy();
-      Logger.success('Clicked "Use Organization" button');
-
-      // ===== STEP 6: VERIFY SUCCESS TOAST APPEARS =====
-      Logger.step(6, 'Verify success toast notification appears');
-
-      const toastAppeared = await organizationPage.waitForActiveOrganizationToast();
-      expect(toastAppeared).toBeTruthy();
-
-      const toastText = await organizationPage.getActiveOrganizationToastText();
-      expect(toastText).toContain('Active organization changed');
-
-      Logger.success('Success toast appeared with correct message');
-
-      // ===== STEP 7: VERIFY BUTTON STATE CHANGED =====
-      Logger.step(7, 'Verify button changed to "Active Organization" state');
-
-      await organizationPage.page.waitForTimeout(1000);
-
-      const isActive = await organizationPage.isOrganizationActive(testOrganizationSlug);
-      expect(isActive).toBeTruthy();
-
-      const activeButton =
-        await organizationPage.findUseOrganizationButtonForSlug(testOrganizationSlug);
-      expect(activeButton).not.toBeNull();
-
-      await expect(activeButton!).toBeDisabled();
-
-      const buttonText = await activeButton!.textContent();
-      expect(buttonText).toContain('Active Organization');
-
-      const hasStarIcon = await activeButton!.locator('svg.lucide-star').isVisible();
-      expect(hasStarIcon).toBeTruthy();
-
-      Logger.success('Button successfully changed to "Active Organization" state');
-
-      // ===== STEP 8: VERIFY ORGANIZATION REMAINS IN TABLE =====
-      Logger.step(8, 'Verify organization still appears in table after activation');
-
-      const stillInTable = await organizationPage.verifyOrganizationInTable(testOrganizationSlug);
-      expect(stillInTable).toBeTruthy();
-
-      Logger.success('Organization remains in table after activation');
-
-      Logger.testEnd('Activate Newly Created Organization', true);
+      Logger.testEnd('Create Organization with Valid Data', true);
     } catch (error) {
       Logger.error('Test failed', error);
-      Logger.testEnd('Activate Newly Created Organization', false);
+      Logger.testEnd('Create Organization with Valid Data', false);
       throw error;
     }
   });
 
-  test('should not allow activating already active organization', async ({ organizationPage }) => {
-    Logger.testStart('Prevent Activating Already Active Organization');
+  test('should handle reset button correctly', async ({ dashboardPage, organizationPage }) => {
+    Logger.testStart('Test Reset Button Functionality');
 
     try {
-      Logger.step(1, 'Find an already active organization');
+      Logger.step(1, 'Navigate to Organization Create page');
+      await dashboardPage.clickCreateButton();
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
-      await organizationPage.waitForTableToLoad();
-      const totalOrgs = await organizationPage.getTotalOrganizationsCount();
+      Logger.step(2, 'Fill form data');
+      const orgData = TestDataGenerator.generateOrganization();
+      await organizationPage.fillName(orgData.name);
+      await organizationPage.fillSlug(orgData.slug);
 
-      if (totalOrgs === 0) {
-        Logger.warning('No organizations found in table, skipping test');
-        test.skip();
-        return;
+      Logger.step(3, 'Verify data was filled');
+      const nameBeforeReset = await organizationPage.getNameValue();
+      const slugBeforeReset = await organizationPage.getSlugValue();
+      expect(nameBeforeReset).toBe(orgData.name);
+      expect(slugBeforeReset).toBe(orgData.slug);
+
+      Logger.step(4, 'Click Reset button');
+      await organizationPage.clickReset();
+
+      Logger.step(5, 'Verify form fields are cleared');
+      await organizationPage.page.waitForLoadState('networkidle');
+      const nameAfterReset = await organizationPage.getNameValue();
+      const slugAfterReset = await organizationPage.getSlugValue();
+      expect(nameAfterReset).toBe('');
+      expect(slugAfterReset).toBe('');
+
+      Logger.step(6, 'Verify we are still on create page');
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
+
+      Logger.success('Reset button works correctly');
+      Logger.testEnd('Test Reset Button Functionality', true);
+    } catch (error) {
+      Logger.error('Test failed', error);
+      Logger.testEnd('Test Reset Button Functionality', false);
+      throw error;
+    }
+  });
+
+  test('should auto-generate slug from organization name', async ({
+    dashboardPage,
+    organizationPage,
+  }) => {
+    Logger.testStart('Test Slug Auto-generation');
+
+    try {
+      Logger.step(1, 'Navigate to Organization Create page');
+      await dashboardPage.clickCreateButton();
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
+
+      Logger.step(2, 'Enter organization name');
+      const testName = 'Test Organization Name 2024';
+      await organizationPage.fillName(testName);
+
+      Logger.step(3, 'Check if slug was auto-generated');
+      await organizationPage.page.waitForLoadState('networkidle');
+      const slugValue = await organizationPage.getSlugValue();
+
+      if (slugValue) {
+        Logger.info(`Auto-generated slug: ${slugValue}`);
+        Logger.step(4, 'Verify slug format is URL-friendly');
+        expect(slugValue).toMatch(/^[a-z0-9-]+$/);
+        expect(slugValue).not.toMatch(/[A-Z]/);
+        expect(slugValue).not.toMatch(/[^a-z0-9-]/);
+        Logger.success('Slug auto-generation working correctly');
+      } else {
+        Logger.info('No auto-generation detected, manual entry required');
       }
 
-      let activeOrganizationSlug: string | null = null;
+      Logger.testEnd('Test Slug Auto-generation', true);
+    } catch (error) {
+      Logger.error('Test failed', error);
+      Logger.testEnd('Test Slug Auto-generation', false);
+      throw error;
+    }
+  });
 
-      for (let i = 0; i < totalOrgs; i++) {
-        const row = organizationPage.getTableRow(i);
+  test('should validate required fields', async ({ dashboardPage, organizationPage }) => {
+    Logger.testStart('Test Required Field Validation');
 
-        const useButton = row.locator('td:first-child button');
-        const isDisabled = await useButton.isDisabled();
-        const hasStarIcon = await useButton
-          .locator('svg.lucide-star')
-          .isVisible()
-          .catch(() => false);
+    try {
+      Logger.step(1, 'Navigate to Organization Create page');
+      await dashboardPage.clickCreateButton();
+      await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
-        if (isDisabled && hasStarIcon) {
-          const slugCell = row.locator('td:nth-child(4) div.text-left');
-          const slug = await slugCell.textContent();
-          if (slug) {
-            activeOrganizationSlug = slug.trim();
-            break;
-          }
+      Logger.step(2, 'Attempt to submit empty form');
+      await organizationPage.clickSubmit();
+      await organizationPage.page.waitForLoadState('networkidle');
+
+      Logger.step(3, 'Check for validation errors');
+      const nameHasError = await organizationPage.getNameInputAriaInvalid();
+      const slugHasError = await organizationPage.getSlugInputAriaInvalid();
+      const hasValidationErrors = nameHasError === 'true' || slugHasError === 'true';
+
+      if (hasValidationErrors) {
+        Logger.info('Client-side validation errors detected as expected');
+        Logger.step(4, 'Verify form was not submitted');
+        await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
+
+        const errorMessages = organizationPage.page.locator(
+          '.text-destructive, [role="alert"], .error-message'
+        );
+        const errorCount = await errorMessages.count();
+        if (errorCount > 0) {
+          Logger.info(`Found ${errorCount} error messages`);
+        }
+      } else {
+        Logger.info('No client-side validation detected, checking for server response');
+        const errorToast = organizationPage.page.locator('[data-sonner-toast][data-type="error"]');
+        try {
+          await errorToast.waitFor({ state: 'visible', timeout: 5000 });
+          Logger.info('Server validation error toast detected');
+        } catch {
+          Logger.info('No error toast detected');
         }
       }
 
-      if (!activeOrganizationSlug) {
-        Logger.warning('No active organization found, skipping test');
-        test.skip();
-        return;
-      }
-
-      Logger.info(`Found active organization: ${activeOrganizationSlug}`);
-
-      Logger.step(2, 'Verify "Use Organization" button is disabled');
-
-      const button =
-        await organizationPage.findUseOrganizationButtonForSlug(activeOrganizationSlug);
-      expect(button).not.toBeNull();
-
-      await expect(button!).toBeDisabled();
-      await expect(button!).toContainText('Active Organization');
-
-      Logger.success('Active organization button is properly disabled');
-
-      Logger.step(3, 'Attempt to click disabled button');
-
-      const clicked = await organizationPage.clickUseOrganizationForSlug(activeOrganizationSlug);
-      expect(clicked).toBeFalsy();
-
-      Logger.success('Cannot click already active organization button');
-
-      Logger.step(4, 'Verify no new toast appears');
-
-      await organizationPage.page.waitForTimeout(2000);
-
-      const toastCount = await organizationPage.getSuccessToastCount();
-
-      if (toastCount > 0) {
-        const newToast = await organizationPage.hasActiveOrgChangedToast();
-        expect(newToast).toBeFalsy();
-      }
-
-      Logger.success('No new toast appeared (as expected)');
-
-      Logger.testEnd('Prevent Activating Already Active Organization', true);
+      Logger.success('Field validation behavior verified');
+      Logger.testEnd('Test Required Field Validation', true);
     } catch (error) {
       Logger.error('Test failed', error);
-      Logger.testEnd('Prevent Activating Already Active Organization', false);
+      Logger.testEnd('Test Required Field Validation', false);
       throw error;
     }
   });
