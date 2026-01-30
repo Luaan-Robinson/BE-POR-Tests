@@ -1,6 +1,6 @@
 # BE POR Automation Test Framework
 
-A production-ready Playwright automation testing framework for the BE POR web application.
+A practice Playwright automation testing framework for the BE POR web application.
 
 ## 🚀 Features
 
@@ -41,7 +41,7 @@ A production-ready Playwright automation testing framework for the BE POR web ap
 1. **Clone and install:**
 
    ```bash
-   git clone <repository-url>
+   git clone <https://github.com/Luaan-Robinson/BE-Practice-Tests.git>
    cd be-por-automation-tests
    npm install
    npm run install:browsers
