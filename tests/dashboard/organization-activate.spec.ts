@@ -9,10 +9,10 @@ import { TestDataGenerator } from '../../utils/test-data-generator';
  * Reason: Performance issue with organization list page loading times
  * After running the test multiple times the organization table gets full
  * which causes very long loading times and test failures.
- * 
+ *
  * The test works the first few times on a new account
  * but as more organizations are created the load time increases significantly.
- * 
+ *
  * TODO: Re-enable these tests once the following issues are resolved:
  * 1. Organization table loading performance optimization
  * 2. User can delete organizations or a limit is created for how many organizations a user can have?
