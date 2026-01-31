@@ -1,6 +1,6 @@
 /**
  * Environment Configuration
- * Manages different test environments (dev, staging, production)
+ * Manages different test environments (SIT, UAT, prod)
  * This is unused for now but may be useful later
  */
 
