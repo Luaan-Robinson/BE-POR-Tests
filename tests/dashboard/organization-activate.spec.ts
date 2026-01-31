@@ -9,12 +9,10 @@ import { TestDataGenerator } from '../../utils/test-data-generator';
  * Reason: Performance issue with organization list page loading times
  *
  * TODO: Re-enable these tests once the following issues are resolved:
- * 1. Organization table loading performance optimization
- * 2. Pagination implementation to handle large datasets
- * 3. Backend query optimization for organization listing
+ * 1. Organization table loading performance optimization or table fields get cleared
  *
  * These tests are functional and will work once performance issues are addressed.
- * Last tested: [Add date when you last ran them successfully]
+ * Last tested: [2026-01-29]
  */
 test.describe.skip('Organization Activation', () => {
   let testOrganizationSlug: string;
