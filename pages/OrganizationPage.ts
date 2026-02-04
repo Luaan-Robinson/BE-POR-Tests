@@ -1,8 +1,17 @@
 import { Page, Locator } from '@playwright/test';
 import { Logger } from '../utils/logger';
 import { OrganizationData } from '../utils/test-data-generator';
+import testConfig from '../config/test-config';
 import path from 'path';
 
+/**
+ * Organization Page Object Model
+ * Handles all interactions with organization management pages
+ * Covers both the organization list view and create/edit form
+ *
+ * This class encapsulates organization-related elements and actions,
+ * following the Page Object Model pattern for maintainable tests.
+ */
 export class OrganizationPage {
   // ===== FORM FIELDS (Create Organization) =====
   private readonly nameInput: Locator;
@@ -23,18 +32,19 @@ export class OrganizationPage {
   private readonly tableRows: Locator;
   private readonly createButton: Locator;
 
+  /**
+   * Initialize Organization page with locators
+   * @param page - Playwright page object
+   */
   constructor(public page: Page) {
     // ===== CREATE FORM ELEMENTS =====
-    // Target inputs by ID for specificity
     this.nameInput = page.locator('input#name');
     this.slugInput = page.locator('input#slug');
     this.logoInput = page.locator('input#logo[type="file"]');
 
-    // Target buttons by text content within specific sections
     this.submitButton = page.locator('button[type="submit"]:has-text("Submit")').first();
     this.resetButton = page.locator('button[type="button"]:has-text("Reset")').first();
 
-    // Toast notification
     this.successToast = page.locator('[data-sonner-toast][data-type="success"]');
     this.pageTitle = page.locator('h1, [data-slot="title"]').first();
     this.form = page.locator('form#organization-form');
@@ -45,7 +55,8 @@ export class OrganizationPage {
     this.createButton = page.locator('a[href="/organization/create"] button');
   }
 
-  // ===== HELPER METHODS FOR TABLE =====
+  // ===== HELPER METHODS =====
+
   public getTableRow(index: number): Locator {
     return this.tableRows.nth(index);
   }
@@ -59,39 +70,40 @@ export class OrganizationPage {
     return (await newToast.count()) > 0;
   }
 
-  // ===== ORGANIZATION LIST METHODS =====
+  // ===== TABLE METHODS =====
 
   async waitForTableToLoad(): Promise<void> {
     Logger.info('Waiting for organizations table to load');
-    await this.organizationsTable.waitFor({ state: 'visible', timeout: 15000 });
+    await this.organizationsTable.waitFor({
+      state: 'visible',
+      timeout: testConfig.timeouts.long,
+    });
+    await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
   }
 
   async getOrganizationRowBySlug(slug: string): Promise<Locator | null> {
     Logger.info(`Looking for organization with slug: ${slug}`);
-
     await this.waitForTableToLoad();
 
-    // Get all rows
     const rows = this.tableRows;
     const rowCount = await rows.count();
-
     Logger.info(`Found ${rowCount} organization rows in table`);
 
-    // Search for the row containing the slug in the 4th column
     for (let i = 0; i < rowCount; i++) {
       const row = rows.nth(i);
-
-      // Look for the slug in the 4th column (index 3) - specific selector from your HTML
       const slugCell = row.locator('td:nth-child(4) div.text-left');
 
       try {
-        const cellText = await slugCell.textContent({ timeout: 2000 });
+        const cellText = await slugCell.textContent({
+          timeout: testConfig.timeouts.short,
+        });
+
         if (cellText && cellText.trim() === slug) {
           Logger.info(`Found organization row for slug: ${slug} at row ${i + 1}`);
           return row;
         }
-      } catch {
-        // Cell not found or timeout, continue to next row
+      } catch (error) {
+        Logger.debug(`Cell not found in row ${i}`, error);
         continue;
       }
     }
@@ -108,15 +120,18 @@ export class OrganizationPage {
       return null;
     }
 
-    // Find the "Use Organization" button in the first column - very specific selector
     const useButton = row.locator('td:first-child button:has-text("Use Organization")');
 
     try {
-      await useButton.waitFor({ state: 'visible', timeout: 5000 });
+      await useButton.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.short,
+      });
       Logger.info(`Found "Use Organization" button for slug: ${slug}`);
       return useButton;
-    } catch {
+    } catch (error) {
       Logger.warning(`"Use Organization" button not found for slug: ${slug}`);
+      Logger.debug('Button search error', error);
       return null;
     }
   }
@@ -129,15 +144,15 @@ export class OrganizationPage {
       return false;
     }
 
-    // Check if button is already disabled (already active organization)
     const isDisabled = await button.isDisabled();
     if (isDisabled) {
       Logger.info(`Organization "${slug}" is already active`);
       return false;
     }
 
-    // Click the button
     await button.click();
+    await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
+
     return true;
   }
 
@@ -149,9 +164,11 @@ export class OrganizationPage {
       return false;
     }
 
-    // Check if button is disabled and has star icon (active state)
     const isDisabled = await button.isDisabled();
-    const hasStarIcon = await button.locator('svg.lucide-star').isVisible();
+    const hasStarIcon = await button
+      .locator('svg.lucide-star')
+      .isVisible()
+      .catch(() => false);
     const buttonText = await button.textContent();
     const isActiveText = buttonText?.includes('Active Organization') || false;
 
@@ -160,7 +177,6 @@ export class OrganizationPage {
 
   async verifyOrganizationInTable(slug: string): Promise<boolean> {
     Logger.info(`Verifying organization "${slug}" exists in table`);
-
     const row = await this.getOrganizationRowBySlug(slug);
     return row !== null;
   }
@@ -169,18 +185,23 @@ export class OrganizationPage {
     Logger.info('Waiting for "Active organization changed" toast');
 
     try {
-      // Look for the specific success toast with title "Active organization changed"
       const toast = this.successToast.filter({ hasText: 'Active organization changed' });
-      await toast.waitFor({ state: 'visible', timeout: 10000 });
+      await toast.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.medium,
+      });
 
-      // Also wait for the checkmark icon to appear
       const checkIcon = toast.locator('.lucide-circle-check');
-      await checkIcon.waitFor({ state: 'visible', timeout: 5000 });
+      await checkIcon.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.short,
+      });
 
       Logger.success('Active organization toast appeared');
       return true;
     } catch (error) {
-      Logger.warning('Active organization toast not found', error);
+      Logger.warning('Active organization toast not found');
+      Logger.debug('Toast wait error', error);
       return false;
     }
   }
@@ -190,7 +211,8 @@ export class OrganizationPage {
       const toast = this.successToast.filter({ hasText: 'Active organization changed' });
       const titleElement = toast.locator('[data-title]');
       return (await titleElement.textContent()) || '';
-    } catch {
+    } catch (error) {
+      Logger.debug('Could not get toast text', error);
       return '';
     }
   }
@@ -205,13 +227,12 @@ export class OrganizationPage {
     if (row) {
       Logger.info(`Scrolling to organization row for slug: ${slug}`);
       await row.scrollIntoViewIfNeeded();
-      await this.page.waitForTimeout(500); // Allow time for UI to settle
+      await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.default);
     }
   }
 
   // ===== CREATE FORM METHODS =====
 
-  // Public methods for test access
   public async isLogoInputVisible(): Promise<boolean> {
     return this.logoInput.isVisible();
   }
@@ -227,11 +248,13 @@ export class OrganizationPage {
   async fillName(name: string): Promise<void> {
     Logger.info(`Filling organization name with: ${name}`);
     await this.nameInput.fill(name);
+    await this.nameInput.blur(); // Trigger validation
   }
 
   async fillSlug(slug: string): Promise<void> {
     Logger.info(`Filling organization slug with: ${slug}`);
     await this.slugInput.fill(slug);
+    await this.slugInput.blur(); // Trigger validation
   }
 
   async uploadLogo(imagePath: string): Promise<void> {
@@ -241,7 +264,9 @@ export class OrganizationPage {
     Logger.info(`Absolute path: ${absolutePath}`);
 
     await this.logoInput.setInputFiles(absolutePath);
-    await this.page.waitForTimeout(1000);
+
+    // Wait for file to be uploaded and processed
+    await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
   }
 
   async clickSubmit(): Promise<void> {
@@ -280,9 +305,12 @@ export class OrganizationPage {
 
   async isOnCreatePage(): Promise<boolean> {
     try {
-      await this.page.waitForURL('**/organization/create', { timeout: 10000 });
+      await this.page.waitForURL('**/organization/create', {
+        timeout: testConfig.timeouts.medium,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      Logger.debug('Not on create page', error);
       return false;
     }
   }
@@ -294,23 +322,31 @@ export class OrganizationPage {
 
   async isSuccessToastVisible(): Promise<boolean> {
     try {
-      await this.successToast.waitFor({ state: 'visible', timeout: 15000 });
+      await this.successToast.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.long,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      Logger.debug('Success toast not visible', error);
       return false;
     }
   }
 
   async waitForSuccessToast(): Promise<void> {
     Logger.info('Waiting for success toast');
-    await this.successToast.waitFor({ state: 'visible', timeout: 20000 });
+    await this.successToast.waitFor({
+      state: 'visible',
+      timeout: testConfig.timeouts.extraLong,
+    });
   }
 
   async getSuccessToastText(): Promise<string> {
     try {
       const titleElement = this.successToast.locator('[data-title]');
       return (await titleElement.textContent()) || '';
-    } catch {
+    } catch (error) {
+      Logger.debug('Could not get toast text', error);
       return '';
     }
   }
@@ -330,18 +366,26 @@ export class OrganizationPage {
 
   async isSubmitButtonVisible(): Promise<boolean> {
     try {
-      await this.submitButton.waitFor({ state: 'visible', timeout: 5000 });
+      await this.submitButton.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.short,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      Logger.debug('Submit button not visible', error);
       return false;
     }
   }
 
   async isResetButtonVisible(): Promise<boolean> {
     try {
-      await this.resetButton.waitFor({ state: 'visible', timeout: 5000 });
+      await this.resetButton.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.short,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      Logger.debug('Reset button not visible', error);
       return false;
     }
   }
@@ -349,23 +393,30 @@ export class OrganizationPage {
   async verifyFormReset(): Promise<boolean> {
     const nameValue = await this.getNameValue();
     const slugValue = await this.getSlugValue();
-
     return nameValue === '' && slugValue === '';
   }
 
   async verifyNavigationAfterSubmit(): Promise<boolean> {
     try {
+      // First, try waiting for success toast
       try {
-        await this.successToast.waitFor({ state: 'visible', timeout: 5000 });
+        await this.successToast.waitFor({
+          state: 'visible',
+          timeout: testConfig.timeouts.short,
+        });
         Logger.info('Success toast appeared');
         return true;
       } catch {
-        await this.page.waitForURL('**/organization', { timeout: 10000 });
+        // If no toast, check for redirect to organization list
+        await this.page.waitForURL('**/organization', {
+          timeout: testConfig.timeouts.medium,
+        });
         Logger.info('Redirected to organization list');
         return true;
       }
     } catch (error) {
-      Logger.error('Neither success toast nor redirect occurred', error);
+      Logger.error('Neither success toast nor redirect occurred');
+      Logger.debug('Navigation verification error', error);
       return false;
     }
   }
@@ -373,7 +424,6 @@ export class OrganizationPage {
   async areFieldsCleared(): Promise<boolean> {
     const nameValue = await this.getNameValue();
     const slugValue = await this.getSlugValue();
-
     return nameValue === '' && slugValue === '';
   }
 
@@ -382,7 +432,7 @@ export class OrganizationPage {
   async navigateToOrganizationList(): Promise<void> {
     Logger.info('Navigating to organization list page');
     await this.page.goto('/organization');
-    await this.page.waitForLoadState('domcontentloaded');
+    await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.default);
   }
 
   async clickCreateOrganization(): Promise<void> {
@@ -392,9 +442,13 @@ export class OrganizationPage {
 
   async isCreateButtonVisible(): Promise<boolean> {
     try {
-      await this.createButton.waitFor({ state: 'visible', timeout: 10000 });
+      await this.createButton.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.medium,
+      });
       return true;
-    } catch {
+    } catch (error) {
+      Logger.debug('Create button not visible', error);
       return false;
     }
   }
