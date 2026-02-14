@@ -112,6 +112,42 @@ export class OrganizationPage {
     return null;
   }
 
+  /**
+   * Find the action button for an organization (either "Use Organization" or "Active Organization")
+   * @param slug - The organization slug
+   * @returns The button locator or null if not found
+   */
+  async findOrganizationButtonForSlug(slug: string): Promise<Locator | null> {
+    Logger.info(`Looking for organization button for slug: ${slug}`);
+
+    const row = await this.getOrganizationRowBySlug(slug);
+    if (!row) {
+      return null;
+    }
+
+    // Look for any button in the first cell (action column)
+    const actionButton = row.locator('td:first-child button');
+
+    try {
+      await actionButton.waitFor({
+        state: 'visible',
+        timeout: testConfig.timeouts.short,
+      });
+      
+      const buttonText = await actionButton.textContent();
+      Logger.info(`Found button with text: "${buttonText}" for slug: ${slug}`);
+      return actionButton;
+    } catch (error) {
+      Logger.warning(`No button found for slug: ${slug}`);
+      Logger.debug('Button search error', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find the "Use Organization" button for a specific organization
+   * @deprecated Use findOrganizationButtonForSlug instead and check the button state
+   */
   async findUseOrganizationButtonForSlug(slug: string): Promise<Locator | null> {
     Logger.info(`Looking for "Use Organization" button for slug: ${slug}`);
 
@@ -139,14 +175,21 @@ export class OrganizationPage {
   async clickUseOrganizationForSlug(slug: string): Promise<boolean> {
     Logger.info(`Clicking "Use Organization" for slug: ${slug}`);
 
-    const button = await this.findUseOrganizationButtonForSlug(slug);
+    const button = await this.findOrganizationButtonForSlug(slug);
     if (!button) {
+      return false;
+    }
+
+    // Check if it's already active
+    const buttonText = await button.textContent();
+    if (buttonText?.includes('Active Organization')) {
+      Logger.info(`Organization "${slug}" is already active, cannot click`);
       return false;
     }
 
     const isDisabled = await button.isDisabled();
     if (isDisabled) {
-      Logger.info(`Organization "${slug}" is already active`);
+      Logger.info(`Organization "${slug}" button is disabled`);
       return false;
     }
 
@@ -159,7 +202,7 @@ export class OrganizationPage {
   async isOrganizationActive(slug: string): Promise<boolean> {
     Logger.info(`Checking if organization "${slug}" is active`);
 
-    const button = await this.findUseOrganizationButtonForSlug(slug);
+    const button = await this.findOrganizationButtonForSlug(slug);
     if (!button) {
       return false;
     }

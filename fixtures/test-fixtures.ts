@@ -50,14 +50,31 @@ class TestCleanup {
   async cleanup(): Promise<void> {
     Logger.info('Starting test cleanup...');
 
+    // Ensure database is connected before cleanup
+    try {
+      await DatabaseHelper.connect();
+    } catch (error) {
+      Logger.debug('Database already connected or connection error', error);
+    }
+
     // Clean up organizations first (may have foreign key dependencies)
     for (const slug of this.organizationsToCleanup) {
-      await DatabaseHelper.deleteOrganizationBySlug(slug);
+      try {
+        await DatabaseHelper.deleteOrganizationBySlug(slug);
+        Logger.debug(`Cleaned up organization: ${slug}`);
+      } catch (error) {
+        Logger.warning(`Failed to cleanup organization ${slug}:`, error);
+      }
     }
 
     // Clean up users
     for (const email of this.usersToCleanup) {
-      await DatabaseHelper.deleteUserByEmail(email);
+      try {
+        await DatabaseHelper.deleteUserByEmail(email);
+        Logger.debug(`Cleaned up user: ${email}`);
+      } catch (error) {
+        Logger.warning(`Failed to cleanup user ${email}:`, error);
+      }
     }
 
     Logger.success(
@@ -89,7 +106,7 @@ export const test = base.extend<CustomFixtures>({
     // Ensure database is connected
     await DatabaseHelper.connect();
     await use(DatabaseHelper);
-    // Connection is closed in global teardown
+    // Don't close connection here - let global teardown handle it
   },
 
   /**
@@ -99,6 +116,14 @@ export const test = base.extend<CustomFixtures>({
   testCleanup: async ({}, use) => {
     const cleanup = new TestCleanup();
     await use(cleanup);
+    
+    // Ensure database is connected before cleanup
+    try {
+      await DatabaseHelper.connect();
+    } catch (error) {
+      Logger.debug('Database already connected or connection error during cleanup', error);
+    }
+    
     // Cleanup runs after test completes
     await cleanup.cleanup();
   },

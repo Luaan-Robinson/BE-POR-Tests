@@ -13,6 +13,9 @@ async function globalTeardown() {
   Logger.info('🧹 Starting global teardown...');
 
   try {
+    // Ensure database is connected for cleanup
+    await DatabaseHelper.connect();
+
     // Optional: Clean up test data after all tests
     if (testConfig.database.cleanupOnEnd) {
       Logger.info('Cleaning up test data...');

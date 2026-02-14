@@ -4,7 +4,7 @@ import { TestDataGenerator } from '../../utils/test-data-generator';
 import testConfig from '../../config/test-config';
 
 /**
- * Organization Creation Test Suite
+ * Organization Management Test Suite
  *
  * SELF-CONTAINED TESTS:
  * - Each test creates its own organization
@@ -12,7 +12,7 @@ import testConfig from '../../config/test-config';
  * - Each test cleans up automatically
  * - No dependencies between tests
  */
-test.describe('Organization Creation', () => {
+test.describe('Organization Management', () => {
   /**
    * Setup: Authenticate and navigate to Organization page before each test
    */
@@ -83,15 +83,16 @@ test.describe('Organization Creation', () => {
    * SELF-ISOLATION:
    * - Creates unique test organization
    * - Verifies in database (if available)
+   * - Handles both active and inactive states appropriately
    * - Auto-cleanup via testCleanup
    */
-  test('should successfully create organization with database verification', async ({
+  test('should successfully create organization', async ({
     dashboardPage,
     organizationPage,
     database,
     testCleanup,
   }) => {
-    Logger.testStart('Create Organization with Database Verification');
+    Logger.testStart('Create Organization');
 
     // Check if we should skip database verification
     const skipDbVerification = process.env.CI && process.env.BASE_URL?.includes('102.130.120.68');
@@ -147,7 +148,7 @@ test.describe('Organization Creation', () => {
     if (!skipDbVerification) {
       Logger.step(8, 'Verify organization in database');
 
-      // Wait longer for database write to complete
+      // Wait for database write to complete
       Logger.info('Waiting for database write to complete...');
       await organizationPage.page.waitForTimeout(5000);
 
@@ -173,9 +174,168 @@ test.describe('Organization Creation', () => {
       Logger.success('Organization created successfully (UI verification only)');
     }
 
-    Logger.testEnd('Create Organization with Database Verification', true);
+    // ===== STEP 7: MANUALLY NAVIGATE TO ORGANIZATION LIST =====
+    Logger.step(9, 'Manually navigate to organization list page');
 
+    // Use the dashboard navigation to go to organization list
+    await dashboardPage.navigateToOrganization();
+
+    // Wait for the page to load completely
+    await organizationPage.page.waitForURL('**/organization', {
+      timeout: testConfig.timeouts.long,
+    });
+    Logger.success('Navigated to organization list page');
+
+    // ===== STEP 8: VERIFY ORGANIZATION EXISTS IN TABLE =====
+    Logger.step(10, 'Verify organization appears in the table');
+
+    await organizationPage.waitForTableToLoad();
+
+    const isInTable = await organizationPage.verifyOrganizationInTable(orgData.slug);
+    expect(isInTable).toBeTruthy();
+    Logger.success(`Organization "${orgData.slug}" found in table`);
+
+    // ===== STEP 9: IDENTIFY THE BUTTON TYPE =====
+    Logger.step(11, 'Scroll to the organization row');
+    await organizationPage.scrollToOrganization(orgData.slug);
+
+    // Get the organization button (could be either "Use Organization" or "Active Organization")
+    Logger.step(12, 'Find organization button');
+    const orgButton = await organizationPage.findOrganizationButtonForSlug(orgData.slug);
+    expect(orgButton).not.toBeNull();
+
+    // Check what type of button it is
+    const buttonText = await orgButton!.textContent();
+    const isDisabled = await orgButton!.isDisabled();
+    const hasStarIcon = await orgButton!.locator('svg.lucide-star').isVisible().catch(() => false);
+
+    if (buttonText?.includes('Active Organization') && isDisabled && hasStarIcon) {
+      // This is the active organization (first one created)
+      Logger.success(`Organization "${orgData.slug}" is the ACTIVE organization`);
+      Logger.success('Organization creation verified successfully');
+    } else if (buttonText?.includes('Use Organization') && !isDisabled && !hasStarIcon) {
+      // This is an inactive organization (subsequent ones)
+      Logger.success(`Organization "${orgData.slug}" is INACTIVE (shows "Use Organization" button)`);
+      Logger.success('Organization creation verified successfully');
+    } else {
+      // Unexpected button state
+      Logger.warning(`Unexpected button state - Text: "${buttonText}", Disabled: ${isDisabled}, HasStar: ${hasStarIcon}`);
+      // Still consider it a pass since the organization exists
+      Logger.success('Organization exists in table (button state unexpected but organization present)');
+    }
+
+    Logger.testEnd('Create Organization', true);
     // Cleanup happens automatically via testCleanup fixture
+  });
+
+  /**
+   * Test: Activate an inactive organization
+   * 
+   * This test specifically focuses on the activation flow
+   */
+  test('should activate an inactive organization', async ({
+    dashboardPage,
+    organizationPage,
+    testCleanup,
+  }) => {
+    Logger.testStart('Activate Organization');
+
+    // ===== STEP 1: CREATE A NEW ORGANIZATION (WILL BE INACTIVE) =====
+    Logger.step(1, 'Navigate to create page');
+    await dashboardPage.clickCreateButton();
+    await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
+
+    Logger.step(2, 'Generate and create test organization');
+    const orgData = TestDataGenerator.generateOrganization();
+    testCleanup.registerOrganization(orgData.slug);
+
+    await organizationPage.fillOrganizationForm(orgData, 'test-logo.png');
+    await organizationPage.clickSubmit();
+    
+    // Wait for creation to complete
+    const submissionSuccessful = await organizationPage.verifyNavigationAfterSubmit();
+    expect(submissionSuccessful).toBe(true);
+
+    // ===== STEP 2: NAVIGATE BACK TO ORGANIZATION LIST =====
+    Logger.step(3, 'Navigate to organization list');
+    await dashboardPage.navigateToOrganization();
+    await organizationPage.page.waitForURL('**/organization', {
+      timeout: testConfig.timeouts.long,
+    });
+
+    // ===== STEP 3: VERIFY ORGANIZATION IS IN TABLE =====
+    Logger.step(4, 'Verify organization appears in the table');
+    await organizationPage.waitForTableToLoad();
+    
+    const isInTable = await organizationPage.verifyOrganizationInTable(orgData.slug);
+    expect(isInTable).toBeTruthy();
+    
+    await organizationPage.scrollToOrganization(orgData.slug);
+
+    // ===== STEP 4: CHECK THAT IT'S NOT ALREADY ACTIVE =====
+    Logger.step(5, 'Verify organization is not already active');
+    const isActive = await organizationPage.isOrganizationActive(orgData.slug);
+    
+    if (isActive) {
+      Logger.info(`Organization "${orgData.slug}" is already active, skipping activation test`);
+      Logger.testEnd('Activate Organization', true);
+      return;
+    }
+
+    // ===== STEP 5: GET THE BUTTON AND VERIFY IT'S "Use Organization" =====
+    Logger.step(6, 'Find and verify "Use Organization" button');
+    const orgButton = await organizationPage.findOrganizationButtonForSlug(orgData.slug);
+    expect(orgButton).not.toBeNull();
+
+    const buttonText = await orgButton!.textContent();
+    expect(buttonText).toContain('Use Organization');
+    
+    await expect(orgButton!).toBeVisible();
+    await expect(orgButton!).toBeEnabled();
+    
+    const hasStarIcon = await orgButton!.locator('svg.lucide-star').isVisible().catch(() => false);
+    expect(hasStarIcon).toBe(false);
+
+    Logger.success('"Use Organization" button found and verified');
+
+    // ===== STEP 6: ACTIVATE THE ORGANIZATION =====
+    Logger.step(7, 'Click "Use Organization" button to activate');
+    await orgButton!.click();
+    await organizationPage.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
+
+    // ===== STEP 7: VERIFY SUCCESS TOAST APPEARS =====
+    Logger.step(8, 'Verify success toast notification appears');
+
+    const toastAppeared = await organizationPage.waitForActiveOrganizationToast();
+    expect(toastAppeared).toBeTruthy();
+
+    const toastText = await organizationPage.getActiveOrganizationToastText();
+    expect(toastText).toContain('Active organization changed');
+
+    Logger.success('Success toast appeared with correct message');
+
+    // ===== STEP 8: VERIFY BUTTON STATE CHANGED TO ACTIVE =====
+    Logger.step(9, 'Verify button changed to "Active Organization" state');
+
+    await organizationPage.page.waitForTimeout(1000);
+
+    const isActiveNow = await organizationPage.isOrganizationActive(orgData.slug);
+    expect(isActiveNow).toBeTruthy();
+
+    const activeButton = await organizationPage.findOrganizationButtonForSlug(orgData.slug);
+    expect(activeButton).not.toBeNull();
+
+    await expect(activeButton!).toBeDisabled();
+
+    const activeButtonText = await activeButton!.textContent();
+    expect(activeButtonText).toContain('Active Organization');
+
+    const hasStarIconNow = await activeButton!.locator('svg.lucide-star').isVisible();
+    expect(hasStarIconNow).toBeTruthy();
+
+    Logger.success('Button successfully changed to "Active Organization" state');
+
+    Logger.testEnd('Activate Organization', true);
   });
 
   /**

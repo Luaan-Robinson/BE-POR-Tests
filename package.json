@@ -14,7 +14,7 @@
     "test:signin": "playwright test tests/auth/signin.spec.ts",
     "test:signup": "playwright test tests/auth/signup.spec.ts",
     "test:dashboard": "playwright test tests/dashboard/",
-    "test:organization": "playwright test tests/dashboard/organization-create.spec.ts",
+    "test:organization": "playwright test tests/dashboard/organization.spec.ts",
     "test:chrome": "playwright test --project=chromium",
     "test:firefox": "playwright test --project=firefox",
     "test:parallel": "playwright test --workers=4",
