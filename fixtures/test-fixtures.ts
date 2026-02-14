@@ -84,6 +84,7 @@ export const test = base.extend<CustomFixtures>({
   /**
    * Database fixture - provides access to database helper
    */
+  // eslint-disable-next-line no-empty-pattern
   database: async ({}, use) => {
     // Ensure database is connected
     await DatabaseHelper.connect();
@@ -94,6 +95,7 @@ export const test = base.extend<CustomFixtures>({
   /**
    * Test cleanup fixture - automatic cleanup of test data
    */
+  // eslint-disable-next-line no-empty-pattern
   testCleanup: async ({}, use) => {
     const cleanup = new TestCleanup();
     await use(cleanup);
