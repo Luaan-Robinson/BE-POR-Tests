@@ -132,6 +132,8 @@ test.describe('User Registration', () => {
 
     // At minimum, we should still be on the sign up page
     expect(isStillOnSignUp).toBe(true);
+    // Log validation UI presence for debugging
+    Logger.info(`Validation UI present: ${hasValidationUI}`);
 
     Logger.success('Field validation working correctly');
     Logger.testEnd('Required Field Validation', true);
@@ -169,6 +171,8 @@ test.describe('User Registration', () => {
 
     // Should remain on sign up page at minimum
     expect(isStillOnSignUp).toBe(true);
+    // Log error presence for debugging
+    Logger.info(`Validation error present: ${errorExists}`);
 
     Logger.success('Password confirmation validation working');
     Logger.testEnd('Password Confirmation Validation', true);

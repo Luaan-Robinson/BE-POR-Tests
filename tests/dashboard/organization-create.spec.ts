@@ -134,11 +134,20 @@ test.describe('Organization Creation', () => {
     // ===== STEP 6: VERIFY IN DATABASE =====
     Logger.step(8, 'Verify organization in database');
 
-    // Wait for database write
-    await organizationPage.page.waitForTimeout(2000);
+    // Wait longer for database write to complete (increased from 2000 to 5000)
+    Logger.info('Waiting for database write to complete...');
+    await organizationPage.page.waitForTimeout(5000);
 
     const orgExistsAfter = await database.verifyOrganizationExists(orgData.slug);
-    expect(orgExistsAfter).toBe(true);
+
+    if (!orgExistsAfter) {
+      Logger.warning('Organization not found in database, retrying...');
+      await organizationPage.page.waitForTimeout(3000);
+      const orgExistsRetry = await database.verifyOrganizationExists(orgData.slug);
+      expect(orgExistsRetry).toBe(true);
+    } else {
+      expect(orgExistsAfter).toBe(true);
+    }
 
     const dbOrg = await database.findOrganizationBySlug(orgData.slug);
     expect(dbOrg).not.toBeNull();

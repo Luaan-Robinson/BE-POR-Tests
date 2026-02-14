@@ -84,7 +84,7 @@ export const test = base.extend<CustomFixtures>({
   /**
    * Database fixture - provides access to database helper
    */
-  database: async ({}, use: (r: typeof DatabaseHelper) => Promise<void>) => {
+  database: async ({}, use) => {
     // Ensure database is connected
     await DatabaseHelper.connect();
     await use(DatabaseHelper);
@@ -94,7 +94,7 @@ export const test = base.extend<CustomFixtures>({
   /**
    * Test cleanup fixture - automatic cleanup of test data
    */
-  testCleanup: async ({}, use: (r: TestCleanup) => Promise<void>) => {
+  testCleanup: async ({}, use) => {
     const cleanup = new TestCleanup();
     await use(cleanup);
     // Cleanup runs after test completes

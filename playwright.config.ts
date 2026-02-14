@@ -1,9 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
-import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: resolve(__dirname, '.env') });
 
 /**
  * Production-ready Playwright Test Configuration
@@ -49,8 +54,8 @@ export default defineConfig({
   },
 
   // Global setup and teardown
-  globalSetup: require.resolve('./global-setup.ts'),
-  globalTeardown: require.resolve('./global-teardown.ts'),
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
 
   // Configure projects for different browsers
   projects: [

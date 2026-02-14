@@ -22,9 +22,9 @@ test.describe('Template Test Suite', () => {
    * afterEach runs after every test in this suite
    * Use it for cleanup if needed
    */
-  test.afterEach(async ({ page }) => {
+  test.afterEach(async ({ page: _page }) => {
     // Example: Clear cookies after each test
-    // await page.context().clearCookies();
+    // await _page.context().clearCookies();
   });
 
   /**
@@ -86,7 +86,7 @@ test.describe('Template Test Suite', () => {
   /**
    * EXAMPLE TEST 3: Skip test (for tests that are WIP)
    */
-  test.skip('should do something - work in progress', async ({ page }) => {
+  test.skip('should do something - work in progress', async ({ page: _page }) => {
     // This test will be skipped
     // Use test.skip() for tests you're still working on
   });
