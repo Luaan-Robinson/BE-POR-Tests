@@ -133,7 +133,7 @@ export class OrganizationPage {
         state: 'visible',
         timeout: testConfig.timeouts.short,
       });
-      
+
       const buttonText = await actionButton.textContent();
       Logger.info(`Found button with text: "${buttonText}" for slug: ${slug}`);
       return actionButton;

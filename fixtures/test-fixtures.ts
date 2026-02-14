@@ -116,14 +116,14 @@ export const test = base.extend<CustomFixtures>({
   testCleanup: async ({}, use) => {
     const cleanup = new TestCleanup();
     await use(cleanup);
-    
+
     // Ensure database is connected before cleanup
     try {
       await DatabaseHelper.connect();
     } catch (error) {
       Logger.debug('Database already connected or connection error during cleanup', error);
     }
-    
+
     // Cleanup runs after test completes
     await cleanup.cleanup();
   },

@@ -207,7 +207,10 @@ test.describe('Organization Management', () => {
     // Check what type of button it is
     const buttonText = await orgButton!.textContent();
     const isDisabled = await orgButton!.isDisabled();
-    const hasStarIcon = await orgButton!.locator('svg.lucide-star').isVisible().catch(() => false);
+    const hasStarIcon = await orgButton!
+      .locator('svg.lucide-star')
+      .isVisible()
+      .catch(() => false);
 
     if (buttonText?.includes('Active Organization') && isDisabled && hasStarIcon) {
       // This is the active organization (first one created)
@@ -215,13 +218,19 @@ test.describe('Organization Management', () => {
       Logger.success('Organization creation verified successfully');
     } else if (buttonText?.includes('Use Organization') && !isDisabled && !hasStarIcon) {
       // This is an inactive organization (subsequent ones)
-      Logger.success(`Organization "${orgData.slug}" is INACTIVE (shows "Use Organization" button)`);
+      Logger.success(
+        `Organization "${orgData.slug}" is INACTIVE (shows "Use Organization" button)`
+      );
       Logger.success('Organization creation verified successfully');
     } else {
       // Unexpected button state
-      Logger.warning(`Unexpected button state - Text: "${buttonText}", Disabled: ${isDisabled}, HasStar: ${hasStarIcon}`);
+      Logger.warning(
+        `Unexpected button state - Text: "${buttonText}", Disabled: ${isDisabled}, HasStar: ${hasStarIcon}`
+      );
       // Still consider it a pass since the organization exists
-      Logger.success('Organization exists in table (button state unexpected but organization present)');
+      Logger.success(
+        'Organization exists in table (button state unexpected but organization present)'
+      );
     }
 
     Logger.testEnd('Create Organization', true);
@@ -230,7 +239,7 @@ test.describe('Organization Management', () => {
 
   /**
    * Test: Activate an inactive organization
-   * 
+   *
    * This test specifically focuses on the activation flow
    */
   test('should activate an inactive organization', async ({
@@ -251,7 +260,7 @@ test.describe('Organization Management', () => {
 
     await organizationPage.fillOrganizationForm(orgData, 'test-logo.png');
     await organizationPage.clickSubmit();
-    
+
     // Wait for creation to complete
     const submissionSuccessful = await organizationPage.verifyNavigationAfterSubmit();
     expect(submissionSuccessful).toBe(true);
@@ -266,16 +275,16 @@ test.describe('Organization Management', () => {
     // ===== STEP 3: VERIFY ORGANIZATION IS IN TABLE =====
     Logger.step(4, 'Verify organization appears in the table');
     await organizationPage.waitForTableToLoad();
-    
+
     const isInTable = await organizationPage.verifyOrganizationInTable(orgData.slug);
     expect(isInTable).toBeTruthy();
-    
+
     await organizationPage.scrollToOrganization(orgData.slug);
 
     // ===== STEP 4: CHECK THAT IT'S NOT ALREADY ACTIVE =====
     Logger.step(5, 'Verify organization is not already active');
     const isActive = await organizationPage.isOrganizationActive(orgData.slug);
-    
+
     if (isActive) {
       Logger.info(`Organization "${orgData.slug}" is already active, skipping activation test`);
       Logger.testEnd('Activate Organization', true);
@@ -289,11 +298,14 @@ test.describe('Organization Management', () => {
 
     const buttonText = await orgButton!.textContent();
     expect(buttonText).toContain('Use Organization');
-    
+
     await expect(orgButton!).toBeVisible();
     await expect(orgButton!).toBeEnabled();
-    
-    const hasStarIcon = await orgButton!.locator('svg.lucide-star').isVisible().catch(() => false);
+
+    const hasStarIcon = await orgButton!
+      .locator('svg.lucide-star')
+      .isVisible()
+      .catch(() => false);
     expect(hasStarIcon).toBe(false);
 
     Logger.success('"Use Organization" button found and verified');
