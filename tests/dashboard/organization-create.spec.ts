@@ -5,14 +5,16 @@ import testConfig from '../../config/test-config';
 
 /**
  * Organization Creation Test Suite
- * Tests for creating new organizations including form validation,
- * field auto-generation, and successful submission
  *
- * Note: Uses the authenticatedPage fixture to automatically sign in
+ * SELF-CONTAINED TESTS:
+ * - Each test creates its own organization
+ * - Each test verifies in database
+ * - Each test cleans up automatically
+ * - No dependencies between tests
  */
 test.describe('Organization Creation', () => {
   /**
-   * Setup: Sign in and navigate to Organization page before each test
+   * Setup: Authenticate and navigate to Organization page before each test
    */
   test.beforeEach(async ({ authenticatedPage, dashboardPage }) => {
     void authenticatedPage; // User is already signed in
@@ -23,7 +25,10 @@ test.describe('Organization Creation', () => {
 
   /**
    * Test: Navigate to organization create page
-   * Verifies the Create button works and navigates to the correct URL
+   *
+   * SELF-ISOLATION:
+   * - Pure navigation test
+   * - No data creation
    */
   test('should navigate to organization create page', async ({
     dashboardPage,
@@ -31,19 +36,16 @@ test.describe('Organization Creation', () => {
   }) => {
     Logger.testStart('Navigate to Organization Create Page');
 
-    Logger.step(1, 'Verify Create button is visible on Organization page');
+    Logger.step(1, 'Verify Create button is visible');
     const isCreateButtonVisible = await dashboardPage.isCreateButtonVisible();
     expect(isCreateButtonVisible).toBe(true);
-    Logger.success('Create button is visible');
 
     Logger.step(2, 'Click Create button');
     await dashboardPage.clickCreateButton();
 
-    Logger.step(3, 'Verify navigation to Organization Create page');
+    Logger.step(3, 'Verify navigation to create page');
     const isOnCreatePage = await organizationPage.isOnCreatePage();
     expect(isOnCreatePage).toBe(true);
-
-    Logger.step(4, 'Verify page URL contains /organization/create');
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
     Logger.success('Successfully navigated to Organization Create page');
@@ -52,229 +54,218 @@ test.describe('Organization Creation', () => {
 
   /**
    * Test: Display all form elements
-   * Verifies that the create organization form contains all required fields
+   *
+   * SELF-ISOLATION:
+   * - Pure UI verification
+   * - No data operations
    */
-  test('should display all form elements on organization create page', async ({
-    dashboardPage,
-    organizationPage,
-  }) => {
-    Logger.testStart('Verify Organization Create Form Elements');
+  test('should display all form elements', async ({ dashboardPage, organizationPage }) => {
+    Logger.testStart('Verify Form Elements');
 
-    Logger.step(1, 'Navigate to Organization Create page');
+    Logger.step(1, 'Navigate to create page');
     await dashboardPage.clickCreateButton();
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
-    Logger.step(2, 'Verify Name input field is visible and empty');
-    const nameValue = await organizationPage.getNameValue();
-    expect(nameValue).toBe('');
+    Logger.step(2, 'Verify all form fields are present');
+    expect(await organizationPage.getNameValue()).toBe('');
+    expect(await organizationPage.getSlugValue()).toBe('');
+    expect(await organizationPage.isLogoInputVisible()).toBe(true);
+    expect(await organizationPage.isSubmitButtonVisible()).toBe(true);
+    expect(await organizationPage.isResetButtonVisible()).toBe(true);
 
-    Logger.step(3, 'Verify Slug input field is visible and empty');
-    const slugValue = await organizationPage.getSlugValue();
-    expect(slugValue).toBe('');
-
-    Logger.step(4, 'Verify Logo file input is visible');
-    const isLogoInputPresent = await organizationPage.isLogoInputVisible();
-    expect(isLogoInputPresent).toBe(true);
-
-    Logger.step(5, 'Verify Submit button is visible');
-    const isSubmitVisible = await organizationPage.isSubmitButtonVisible();
-    expect(isSubmitVisible).toBe(true);
-
-    Logger.step(6, 'Verify Reset button is visible');
-    const isResetVisible = await organizationPage.isResetButtonVisible();
-    expect(isResetVisible).toBe(true);
-
-    Logger.success('All form elements are displayed correctly');
-    Logger.testEnd('Verify Organization Create Form Elements', true);
+    Logger.success('All form elements displayed correctly');
+    Logger.testEnd('Verify Form Elements', true);
   });
 
   /**
-   * Test: Successfully create organization with valid data
-   * Verifies that an organization can be created with all required fields
-   * and that success feedback is shown
+   * Test: Successfully create organization
+   *
+   * SELF-ISOLATION:
+   * - Creates unique test organization
+   * - Verifies in database
+   * - Auto-cleanup via testCleanup
    */
-  test('should successfully create organization with valid data', async ({
+  test('should successfully create organization with database verification', async ({
     dashboardPage,
     organizationPage,
+    database,
+    testCleanup,
   }) => {
-    Logger.testStart('Create Organization with Valid Data');
+    Logger.testStart('Create Organization with Database Verification');
 
-    Logger.step(1, 'Navigate to Organization Create page');
+    // ===== STEP 1: NAVIGATE TO CREATE PAGE =====
+    Logger.step(1, 'Navigate to create page');
     await dashboardPage.clickCreateButton();
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
-    Logger.step(2, 'Generate test organization data');
+    // ===== STEP 2: GENERATE TEST DATA =====
+    Logger.step(2, 'Generate unique organization data');
     const orgData = TestDataGenerator.generateOrganization();
-    Logger.info('Generated organization data:', {
+
+    // Register for automatic cleanup
+    testCleanup.registerOrganization(orgData.slug);
+
+    Logger.info('Generated organization:', {
       name: orgData.name,
       slug: orgData.slug,
     });
 
-    Logger.step(3, 'Fill organization form with valid data');
+    // ===== STEP 3: VERIFY ORG DOESN'T EXIST (PRECONDITION) =====
+    Logger.step(3, 'Verify organization does not exist in database');
+    const orgExistsBefore = await database.verifyOrganizationExists(orgData.slug);
+    expect(orgExistsBefore).toBe(false);
+
+    // ===== STEP 4: FILL AND SUBMIT FORM =====
+    Logger.step(4, 'Fill and submit organization form');
     await organizationPage.fillOrganizationForm(orgData, 'test-logo.png');
 
-    Logger.step(4, 'Verify logo was uploaded');
+    Logger.step(5, 'Verify logo uploaded');
     const isLogoUploaded = await organizationPage.isLogoUploaded();
     expect(isLogoUploaded).toBe(true);
 
-    Logger.step(5, 'Submit the form');
+    Logger.step(6, 'Submit form');
     await organizationPage.clickSubmit();
 
-    Logger.step(6, 'Verify success indication');
-    const isToastVisible = await organizationPage.isSuccessToastVisible();
-
-    if (isToastVisible) {
-      Logger.step(7, 'Verify toast contains success message');
-      const toastText = await organizationPage.getSuccessToastText();
-      expect(toastText.toLowerCase()).toContain('saved');
-      Logger.success('Organization created successfully with success toast');
-    } else {
-      Logger.step(7, 'Verify redirect to organization list');
-      await organizationPage.page.waitForURL('**/organization', {
-        timeout: testConfig.timeouts.medium,
-      });
-      Logger.success('Organization created successfully with redirect');
-    }
-
+    // ===== STEP 5: VERIFY SUCCESS =====
+    Logger.step(7, 'Verify submission success');
     const submissionSuccessful = await organizationPage.verifyNavigationAfterSubmit();
     expect(submissionSuccessful).toBe(true);
 
-    Logger.testEnd('Create Organization with Valid Data', true);
+    // ===== STEP 6: VERIFY IN DATABASE =====
+    Logger.step(8, 'Verify organization in database');
+
+    // Wait for database write
+    await organizationPage.page.waitForTimeout(2000);
+
+    const orgExistsAfter = await database.verifyOrganizationExists(orgData.slug);
+    expect(orgExistsAfter).toBe(true);
+
+    const dbOrg = await database.findOrganizationBySlug(orgData.slug);
+    expect(dbOrg).not.toBeNull();
+    expect(dbOrg?.slug).toBe(orgData.slug);
+    expect(dbOrg?.name).toBe(orgData.name);
+
+    Logger.success('Organization created and verified in database');
+    Logger.testEnd('Create Organization with Database Verification', true);
+
+    // Cleanup happens automatically via testCleanup fixture
   });
 
   /**
-   * Test: Reset button clears form data
-   * Verifies that clicking Reset clears all form fields
+   * Test: Reset button clears form
+   *
+   * SELF-ISOLATION:
+   * - Pure UI test
+   * - No data persistence
    */
-  test('should handle reset button correctly', async ({ dashboardPage, organizationPage }) => {
-    Logger.testStart('Test Reset Button Functionality');
+  test('should reset form when Reset button clicked', async ({
+    dashboardPage,
+    organizationPage,
+  }) => {
+    Logger.testStart('Reset Button Functionality');
 
-    Logger.step(1, 'Navigate to Organization Create page');
+    Logger.step(1, 'Navigate to create page');
     await dashboardPage.clickCreateButton();
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
-    Logger.step(2, 'Fill form data');
+    Logger.step(2, 'Fill form with data');
     const orgData = TestDataGenerator.generateOrganization();
     await organizationPage.fillName(orgData.name);
     await organizationPage.fillSlug(orgData.slug);
 
     Logger.step(3, 'Verify data was filled');
-    const nameBeforeReset = await organizationPage.getNameValue();
-    const slugBeforeReset = await organizationPage.getSlugValue();
-    expect(nameBeforeReset).toBe(orgData.name);
-    expect(slugBeforeReset).toBe(orgData.slug);
+    expect(await organizationPage.getNameValue()).toBe(orgData.name);
+    expect(await organizationPage.getSlugValue()).toBe(orgData.slug);
 
     Logger.step(4, 'Click Reset button');
     await organizationPage.clickReset();
-
-    Logger.step(5, 'Verify form fields are cleared');
-    // Wait for form to reset
     await organizationPage.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
 
-    const nameAfterReset = await organizationPage.getNameValue();
-    const slugAfterReset = await organizationPage.getSlugValue();
-    expect(nameAfterReset).toBe('');
-    expect(slugAfterReset).toBe('');
-
-    Logger.step(6, 'Verify we are still on create page');
+    Logger.step(5, 'Verify form was cleared');
+    expect(await organizationPage.getNameValue()).toBe('');
+    expect(await organizationPage.getSlugValue()).toBe('');
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
     Logger.success('Reset button works correctly');
-    Logger.testEnd('Test Reset Button Functionality', true);
+    Logger.testEnd('Reset Button Functionality', true);
   });
 
   /**
-   * Test: Slug auto-generation from organization name
-   * Verifies that the slug field is automatically populated
-   * when a name is entered (if feature exists)
+   * Test: Slug auto-generation
+   *
+   * SELF-ISOLATION:
+   * - Pure UI test
+   * - No data persistence
    */
-  test('should auto-generate slug from organization name', async ({
+  test('should auto-generate slug from name if feature exists', async ({
     dashboardPage,
     organizationPage,
   }) => {
-    Logger.testStart('Test Slug Auto-generation');
+    Logger.testStart('Slug Auto-generation');
 
-    Logger.step(1, 'Navigate to Organization Create page');
+    Logger.step(1, 'Navigate to create page');
     await dashboardPage.clickCreateButton();
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
     Logger.step(2, 'Enter organization name');
-    const testName = 'Test Organization Name 2024';
+    const testName = 'Test Organization Auto Slug';
     await organizationPage.fillName(testName);
-
-    Logger.step(3, 'Check if slug was auto-generated');
-    // Wait for any auto-generation to complete
     await organizationPage.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
 
+    Logger.step(3, 'Check if slug was auto-generated');
     const slugValue = await organizationPage.getSlugValue();
 
     if (slugValue) {
       Logger.info(`Auto-generated slug: ${slugValue}`);
-      Logger.step(4, 'Verify slug format is URL-friendly');
+      Logger.step(4, 'Verify slug format');
       expect(slugValue).toMatch(/^[a-z0-9-]+$/);
-      expect(slugValue).not.toMatch(/[A-Z]/);
-      expect(slugValue).not.toMatch(/[^a-z0-9-]/);
-      Logger.success('Slug auto-generation working correctly');
+      expect(slugValue).not.toMatch(/[A-Z\s]/);
+      Logger.success('Slug auto-generation working');
     } else {
-      Logger.info('No auto-generation detected, manual entry required');
+      Logger.info('No auto-generation detected (manual entry required)');
     }
 
-    Logger.testEnd('Test Slug Auto-generation', true);
+    Logger.testEnd('Slug Auto-generation', true);
   });
 
   /**
    * Test: Required field validation
-   * Verifies that form cannot be submitted without required fields
-   * and appropriate validation messages are shown
+   *
+   * SELF-ISOLATION:
+   * - Pure UI validation test
+   * - No data persistence
    */
   test('should validate required fields', async ({ dashboardPage, organizationPage }) => {
-    Logger.testStart('Test Required Field Validation');
+    Logger.testStart('Required Field Validation');
 
-    Logger.step(1, 'Navigate to Organization Create page');
+    Logger.step(1, 'Navigate to create page');
     await dashboardPage.clickCreateButton();
     await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
 
     Logger.step(2, 'Attempt to submit empty form');
     await organizationPage.clickSubmit();
-
-    // Wait for validation to complete
     await organizationPage.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
 
-    Logger.step(3, 'Check for validation errors');
+    Logger.step(3, 'Verify validation prevents submission');
     const nameHasError = await organizationPage.getNameInputAriaInvalid();
     const slugHasError = await organizationPage.getSlugInputAriaInvalid();
     const hasValidationErrors = nameHasError === 'true' || slugHasError === 'true';
 
     if (hasValidationErrors) {
-      Logger.info('Client-side validation errors detected as expected');
-      Logger.step(4, 'Verify form was not submitted');
+      Logger.info('Client-side validation active');
       await expect(organizationPage.page).toHaveURL(/\/organization\/create/);
-
-      // Check for error messages in the UI
-      const errorMessages = organizationPage.page.locator(
-        '.text-destructive, [role="alert"], .error-message'
-      );
-      const errorCount = await errorMessages.count();
-      if (errorCount > 0) {
-        Logger.info(`Found ${errorCount} error messages`);
-      }
     } else {
-      Logger.info('No client-side validation detected, checking for server response');
-
-      // Look for error toast from server
+      Logger.info('Checking for server validation');
       const errorToast = organizationPage.page.locator('[data-sonner-toast][data-type="error"]');
-      try {
-        await errorToast.waitFor({
-          state: 'visible',
-          timeout: testConfig.timeouts.short,
-        });
-        Logger.info('Server validation error toast detected');
-      } catch {
-        Logger.info('No error toast detected');
-      }
+      const errorCount = await errorToast.count();
+      Logger.info(`Error toasts: ${errorCount}`);
     }
 
-    Logger.success('Field validation behavior verified');
-    Logger.testEnd('Test Required Field Validation', true);
+    // Should still be on create page
+    const stillOnCreate = organizationPage.page.url().includes('/organization/create');
+    expect(stillOnCreate).toBe(true);
+
+    Logger.success('Field validation verified');
+    Logger.testEnd('Required Field Validation', true);
   });
 });

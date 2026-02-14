@@ -1,7 +1,7 @@
 {
   "name": "be-por-automation-tests",
-  "version": "1.0.0",
-  "description": "Production-ready Playwright automation tests for BE POR application",
+  "version": "2.0.0",
+  "description": "Production-ready Playwright automation tests for BE POR application with database integration",
   "author": "QA Team",
   "license": "MIT",
   "scripts": {
@@ -16,7 +16,6 @@
     "test:organization": "playwright test tests/dashboard/organization-create.spec.ts",
     "test:chrome": "playwright test --project=chromium",
     "test:firefox": "playwright test --project=firefox",
-    "test:webkit": "playwright test --project=webkit",
     "test:parallel": "playwright test --workers=4",
     "test:with-report": "playwright test && playwright show-report",
     "report": "playwright show-report",
@@ -25,19 +24,26 @@
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,json,md}\"",
-    "format:fix": "prettier --write \"**/*.{ts,json,md}\""
+    "db:cleanup": "ts-node scripts/cleanup-test-data.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.7",
+    "pg": "^8.18.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.2.0",
     "@playwright/test": "^1.58.0",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^25.0.10",
+    "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",
     "dotenv": "^16.6.1",
+    "drizzle-kit": "^0.31.9",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.8.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
   "engines": {

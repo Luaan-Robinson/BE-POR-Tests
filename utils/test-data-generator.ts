@@ -22,25 +22,21 @@ export interface OrganizationData {
 
 /**
  * Test Data Generator
- * Provides methods to generate realistic, unique test data for automated tests
- * Uses Faker.js library to create random but valid data
+ * Generates unique, identifiable test data that can be easily cleaned up
  */
 export class TestDataGenerator {
   /**
-   * Generate a unique user with valid credentials
-   * Creates a new user with randomized personal information
-   *
-   * @returns UserData object with all required user fields
-   *
-   * @example
-   * const user = TestDataGenerator.generateUser();
-   * // Returns: { firstName: 'John', lastName: 'Doe', email: 'john.doe@example.com', ... }
+   * Generate a unique user with test email domain
+   * Email uses test domain to make cleanup easier
    */
   static generateUser(): UserData {
     const firstName = faker.person.firstName();
     const lastName = faker.person.lastName();
-    // Generate lowercase email to ensure consistency across systems
-    const email = faker.internet.email({ firstName, lastName }).toLowerCase();
+    const timestamp = Date.now();
+    const random = faker.string.alphanumeric(4);
+
+    // Use test email domain for easy identification and cleanup
+    const email = `test-${firstName.toLowerCase()}-${timestamp}-${random}@${testConfig.testData.testEmailDomain}`;
     const password = this.generatePassword();
 
     return {
@@ -53,84 +49,73 @@ export class TestDataGenerator {
   }
 
   /**
-   * Generate a secure password that meets common password requirements
-   * Ensures password contains: uppercase, lowercase, numbers, and special characters
-   *
-   * @returns A randomly generated password string
-   *
-   * @example
-   * const password = TestDataGenerator.generatePassword();
-   * // Returns: 'aB3$dEfGhIjK' (example)
+   * Generate a secure password that meets requirements
    */
   static generatePassword(): string {
     const basePassword = faker.internet.password({
       length: testConfig.testData.passwordLength,
-      memorable: false, // Use random characters for stronger passwords
+      memorable: false,
     });
 
-    // Append characters to guarantee password requirements are met
-    // !1Aa ensures: special char, number, uppercase, lowercase
+    // Ensure password meets requirements: !1Aa = special, number, upper, lower
     return basePassword + '!1Aa';
   }
 
   /**
-   * Generate organization data with a valid name and URL-safe slug
-   *
-   * @returns OrganizationData object with name and slug
-   *
-   * @example
-   * const org = TestDataGenerator.generateOrganization();
-   * // Returns: { name: 'Acme Corp', slug: 'acme-corp' }
+   * Generate organization data with test prefix
+   * Slug includes prefix for easy identification and cleanup
    */
   static generateOrganization(): OrganizationData {
     const companyName = faker.company.name();
-    const slug = this.generateSlug(companyName);
+    const timestamp = Date.now();
+    const random = faker.string.alphanumeric(4);
+
+    // Add test prefix and timestamp to make slug unique and identifiable
+    const slug = this.generateSlug(
+      `${testConfig.testData.testOrgPrefix}${timestamp}-${random}-${companyName}`
+    );
 
     return {
-      name: companyName,
+      name: `Test ${companyName}`,
       slug: slug,
     };
   }
 
   /**
    * Convert text to a URL-safe slug
-   * Transforms any string into a lowercase, hyphenated slug suitable for URLs
-   *
-   * @param text - The text to convert to a slug
-   * @returns URL-safe slug string
-   *
-   * @example
-   * const slug = TestDataGenerator.generateSlug('My Company Name!');
-   * // Returns: 'my-company-name'
    */
   static generateSlug(text: string): string {
     return text
-      .toLowerCase() // Convert to lowercase
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-      .replace(/^-+|-+$/g, '') // Remove leading and trailing hyphens
-      .trim() // Remove whitespace
-      .substring(0, 50); // Limit length to 50 characters
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .trim()
+      .substring(0, 50);
   }
 
   /**
-   * Generate a random email address
-   * Useful for tests that don't need full user data
-   *
-   * @returns Random email address string
+   * Generate a random test email
    */
   static generateEmail(): string {
-    return faker.internet.email().toLowerCase();
+    const timestamp = Date.now();
+    const random = faker.string.alphanumeric(8);
+    return `test-${timestamp}-${random}@${testConfig.testData.testEmailDomain}`;
   }
 
   /**
-   * Generate a random company name
-   * Useful for tests that only need a company name
-   *
-   * @returns Random company name string
+   * Generate a test company name with prefix
    */
   static generateCompanyName(): string {
-    return faker.company.name();
+    return `Test ${faker.company.name()}`;
+  }
+
+  /**
+   * Generate unique identifier for test resources
+   * Useful for creating unique test data that can be tracked
+   */
+  static generateTestId(): string {
+    return `test-${Date.now()}-${faker.string.alphanumeric(6)}`;
   }
 }

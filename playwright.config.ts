@@ -21,24 +21,18 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 2 : 4,
 
-  // FIXED: Report configuration
+  // Reporter configuration
   reporter: [
-    [
-      'html',
-      {
-        outputFolder: 'playwright-report',
-        open: process.env.CI ? 'never' : 'on-failure', // Open on failure locally
-      },
-    ],
+    ['html', { outputFolder: 'playwright-report', open: process.env.CI ? 'never' : 'on-failure' }],
     ['json', { outputFile: 'test-results/results.json' }],
     ['junit', { outputFile: 'test-results/junit.xml' }],
-    ['list'], // Keep list for console output
+    ['list'],
   ],
 
   // Global test settings
   use: {
-    // Base URL from environment variable or default
-    baseURL: process.env.BASE_URL || 'http://102.130.120.68:3001',
+    // Base URL - defaults to localhost for local development
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
     // Browser context options
     viewport: { width: 1920, height: 1080 },
@@ -54,13 +48,16 @@ export default defineConfig({
     navigationTimeout: 30 * 1000,
   },
 
+  // Global setup and teardown
+  globalSetup: require.resolve('./global-setup.ts'),
+  globalTeardown: require.resolve('./global-teardown.ts'),
+
   // Configure projects for different browsers
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // Additional chromium-specific settings
         launchOptions: {
           args: ['--disable-web-security', '--disable-features=IsolateOrigins,site-per-process'],
         },
@@ -75,4 +72,15 @@ export default defineConfig({
 
   // Output folders
   outputDir: 'test-results/',
+
+  // Web server configuration (optional - starts your app automatically)
+  // Uncomment if you want Playwright to start your app
+  /*
+  webServer: {
+    command: 'docker-compose up',
+    url: 'http://localhost:3000',
+    timeout: 120 * 1000,
+    reuseExistingServer: !process.env.CI,
+  },
+  */
 });

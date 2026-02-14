@@ -4,8 +4,11 @@ import testConfig from '../../config/test-config';
 
 /**
  * User Authentication Test Suite
- * Tests for user sign-in functionality including valid/invalid credentials,
- * page element verification, and "Remember Me" feature
+ *
+ * SELF-CONTAINED TESTS:
+ * - Uses pre-existing valid user (configured in .env)
+ * - No cleanup needed as it doesn't create data
+ * - Each test is independent
  */
 test.describe('User Authentication', () => {
   /**
@@ -17,19 +20,20 @@ test.describe('User Authentication', () => {
 
   /**
    * Test: Successful sign-in with valid credentials
-   * Verifies that a user can sign in with correct email/password
-   * and is redirected to the dashboard
+   *
+   * SELF-ISOLATION:
+   * - Uses existing valid user (no data creation)
+   * - No cleanup needed
    */
   test('should successfully sign in with valid credentials', async ({ signInPage, page }) => {
     Logger.testStart('Sign In with Valid Credentials');
 
-    // ===== NAVIGATE TO SIGN IN PAGE =====
+    // ===== STEP 1: NAVIGATE TO SIGN IN =====
     Logger.step(1, 'Navigate to Sign In page');
     await page.click('a:has-text("Sign In")');
     await expect(await signInPage.verifySignInTitle()).toBeVisible();
-    Logger.success('Navigated to Sign In page');
 
-    // ===== PERFORM SIGN IN =====
+    // ===== STEP 2: PERFORM SIGN IN =====
     Logger.step(2, 'Sign in with valid credentials');
     await signInPage.signIn(
       testConfig.testUsers.validUser.email,
@@ -37,30 +41,30 @@ test.describe('User Authentication', () => {
       true
     );
 
-    // ===== VERIFY SUCCESSFUL SIGN IN =====
-    Logger.step(3, 'Verify successful sign in and redirect to dashboard');
+    // ===== STEP 3: VERIFY SUCCESS =====
+    Logger.step(3, 'Verify successful sign in and redirect');
     await expect(page).toHaveURL(/dashboard/, {
       timeout: testConfig.timeouts.long,
     });
-    Logger.success('Successfully redirected to dashboard');
 
+    Logger.success('Successfully signed in and redirected to dashboard');
     Logger.testEnd('Sign In with Valid Credentials', true);
   });
 
   /**
-   * Test: Sign-in page displays all required elements
-   * Verifies that the sign-in page contains all necessary form fields
-   * and buttons for user authentication
+   * Test: Sign-in page displays correctly
+   *
+   * SELF-ISOLATION:
+   * - Pure UI verification
+   * - No data operations
    */
   test('should display Sign In page elements correctly', async ({ signInPage, page }) => {
     Logger.testStart('Verify Sign In Page Elements');
 
-    // Navigate to sign in page
     Logger.step(1, 'Navigate to Sign In page');
     await page.click('a:has-text("Sign In")');
 
-    // Verify page elements are present
-    Logger.step(2, 'Verify page title and form elements');
+    Logger.step(2, 'Verify all form elements are visible');
     await expect(await signInPage.verifySignInTitle()).toBeVisible();
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
@@ -73,39 +77,38 @@ test.describe('User Authentication', () => {
 
   /**
    * Test: Sign-in fails with invalid credentials
-   * Verifies that the system properly rejects invalid login attempts
-   * and does not redirect to the dashboard
+   *
+   * SELF-ISOLATION:
+   * - Uses invalid credentials (no data creation)
+   * - No cleanup needed
    */
   test('should fail sign in with invalid credentials', async ({ signInPage, page }) => {
     Logger.testStart('Sign In with Invalid Credentials');
 
-    // Navigate to sign in page
     Logger.step(1, 'Navigate to Sign In page');
     await page.click('a:has-text("Sign In")');
 
-    // Attempt sign in with invalid credentials
     Logger.step(2, 'Attempt sign in with invalid credentials');
     await signInPage.signIn('invalid@example.com', 'wrongpassword', true);
 
-    // Verify we're still on sign in page (not redirected to dashboard)
     Logger.step(3, 'Verify user is not redirected to dashboard');
-
-    // Wait for network to settle after login attempt
     await page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
 
     const currentUrl = page.url();
     expect(currentUrl).not.toContain('/dashboard');
-    Logger.success('Sign in correctly rejected invalid credentials');
 
+    Logger.success('Sign in correctly rejected invalid credentials');
     Logger.testEnd('Sign In with Invalid Credentials', true);
   });
 
   /**
-   * Test: "Remember Me" functionality
-   * Verifies that the Remember Me checkbox works and sets appropriate cookies
-   * Note: Full persistence testing would require browser restart
+   * Test: Remember Me checkbox functionality
+   *
+   * SELF-ISOLATION:
+   * - Checks cookie persistence
+   * - No data creation or modification
    */
-  test('should remember user when "Remember Me" is checked', async ({ signInPage, page }) => {
+  test('should set auth cookies when "Remember Me" is checked', async ({ signInPage, page }) => {
     Logger.testStart('Remember Me Functionality');
 
     Logger.step(1, 'Navigate to Sign In page');
@@ -115,7 +118,7 @@ test.describe('User Authentication', () => {
     await signInPage.signIn(
       testConfig.testUsers.validUser.email,
       testConfig.testUsers.validUser.password,
-      true // Remember Me = true
+      true
     );
 
     Logger.step(3, 'Verify successful login');
@@ -132,10 +135,11 @@ test.describe('User Authentication', () => {
         cookie.name.toLowerCase().includes('token')
     );
 
-    Logger.info(`Found ${cookies.length} cookies, auth cookie present: ${hasAuthCookie}`);
+    Logger.info(`Found ${cookies.length} total cookies`);
+    Logger.info(`Auth cookie present: ${hasAuthCookie}`);
 
-    // Note: Full "Remember Me" testing would require closing and reopening browser
-    // This is a basic verification that login succeeded with the checkbox checked
+    expect(hasAuthCookie).toBe(true);
+
     Logger.success('Remember Me test completed - cookies verified');
     Logger.testEnd('Remember Me Functionality', true);
   });
