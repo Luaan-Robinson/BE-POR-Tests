@@ -13,6 +13,13 @@ async function globalTeardown() {
   Logger.info('🧹 Starting global teardown...');
 
   try {
+    // Skip all database operations in CI
+    if (process.env.CI) {
+      Logger.info('CI environment detected - skipping all database operations');
+      Logger.success('✅ Global teardown complete');
+      return;
+    }
+
     // Check if DATABASE_URL is set and try to connect
     if (process.env.DATABASE_URL) {
       Logger.info('DATABASE_URL found, attempting database cleanup...');
@@ -22,7 +29,8 @@ async function globalTeardown() {
         Logger.success('Database connected for teardown cleanup');
       } catch (dbError) {
         Logger.warning('Could not connect to database for teardown:', dbError);
-        // Continue with teardown even if DB connection fails
+        Logger.success('✅ Global teardown complete');
+        return;
       }
 
       // Optional: Clean up test data after all tests

@@ -53,9 +53,9 @@ export default defineConfig({
     navigationTimeout: 30 * 1000,
   },
 
-  // Global setup and teardown - Skip in CI when no DATABASE_URL
-  globalSetup: process.env.CI && !process.env.DATABASE_URL ? undefined : './global-setup.ts',
-  globalTeardown: process.env.CI && !process.env.DATABASE_URL ? undefined : './global-teardown.ts',
+  // Global setup and teardown - they handle CI detection internally
+  globalSetup: './global-setup.ts',
+  globalTeardown: './global-teardown.ts',
 
   // Configure projects for different browsers
   projects: [

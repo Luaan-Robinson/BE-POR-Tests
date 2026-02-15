@@ -13,6 +13,13 @@ async function globalSetup() {
   Logger.info('🚀 Starting global setup...');
 
   try {
+    // Skip all database operations in CI
+    if (process.env.CI) {
+      Logger.info('CI environment detected - skipping all database operations');
+      Logger.success('✅ Global setup complete');
+      return;
+    }
+
     // Connect to database
     await DatabaseHelper.connect();
     Logger.success('Database connected');

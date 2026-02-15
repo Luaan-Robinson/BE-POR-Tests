@@ -78,6 +78,8 @@ export class OrganizationPage {
       state: 'visible',
       timeout: testConfig.timeouts.long,
     });
+    // Add extra wait for table to populate with data
+    await this.page.waitForTimeout(1000);
     await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
   }
 
