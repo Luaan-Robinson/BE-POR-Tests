@@ -2,9 +2,6 @@ import { test, expect } from '../../fixtures/test-fixtures';
 import { Logger } from '../../utils/logger';
 
 test.describe('Supplier Groups Management', () => {
-  /**
-   * Setup: Sign in, reload the org page to get fresh data, then activate the first org.
-   */
   test.beforeEach(async ({ authenticatedPage, dashboardPage, organizationPage }) => {
     void authenticatedPage;
 
@@ -28,17 +25,12 @@ test.describe('Supplier Groups Management', () => {
     }
   });
 
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Test: Create a supplier group, verify it in the table and DB, then delete it from the DB.
-   */
   test('should create, verify and delete a supplier group', async ({ page, database }) => {
     Logger.testStart('Create, Verify and Delete Supplier Group');
 
     const groupName = `Test Supplier Group ${Date.now()}`;
 
-    // ===== STEP 1: Navigate to Supplier Groups page via sidebar =====
+    // ===== STEP 1: Navigate to Supplier Groups =====
     Logger.step(1, 'Navigate to Supplier Groups page');
     await page.locator('a[data-slot="sidebar-menu-button"][href="/supplier-groups"]').click();
     await page.waitForURL('**/supplier-groups');
@@ -46,34 +38,39 @@ test.describe('Supplier Groups Management', () => {
 
     // ===== STEP 2: Open create dialog and fill name =====
     Logger.step(2, 'Open Create dialog and fill supplier group name');
-    await page.locator('div.flex.items-center.gap-2 > button').filter({ hasText: 'Create' }).click();
+    await page
+      .locator('div.flex.items-center.gap-2 > button')
+      .filter({ hasText: 'Create' })
+      .click();
 
     const displayNameInput = page.locator('input#displayName');
     await displayNameInput.waitFor({ state: 'visible' });
     await displayNameInput.fill(groupName);
 
-    // ===== STEP 3: Open suppliers dropdown, select all (if any), then close =====
+    // ===== STEP 3: Open suppliers dropdown, select all if any, then close =====
     Logger.step(3, 'Handle suppliers dropdown');
     await page.locator('button[data-slot="popover-trigger"][name="supplierIds"]').click();
 
-    const selectAllOption = page.locator('[cmdk-item][data-value="(Select All)"]').first();
-    if (await selectAllOption.isVisible().catch(() => false)) {
+    const selectAll = page.locator('[cmdk-item]').filter({ hasText: '(Select All)' }).first();
+    if (await selectAll.isVisible().catch(() => false)) {
       Logger.info('Selecting all available suppliers');
-      await selectAllOption.click();
+      await selectAll.click();
     } else {
       Logger.info('No suppliers to select — skipping');
     }
 
-    await page.locator('[cmdk-item][data-value="Close"]').click();
+    const closeBtn = page.locator('[cmdk-item]').filter({ hasText: 'Close' });
+    await closeBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await closeBtn.click();
 
-    // ===== STEP 4: Submit the dialog =====
+    // ===== STEP 4: Submit =====
     Logger.step(4, 'Submit the create dialog');
     await displayNameInput.press('Tab');
     const submitButton = page.locator('button[type="submit"][data-slot="button"]');
     await submitButton.waitFor({ state: 'visible' });
     await submitButton.click();
 
-    // ===== STEP 5: Verify supplier group appears in the table =====
+    // ===== STEP 5: Verify in table =====
     Logger.step(5, 'Verify supplier group is visible in the table');
     const groupRow = page
       .locator('table[data-slot="table"] tbody tr')
@@ -82,7 +79,7 @@ test.describe('Supplier Groups Management', () => {
     await expect(groupRow).toBeVisible({ timeout: 15_000 });
     Logger.success(`Supplier group "${groupName}" is visible in the table`);
 
-    // ===== STEP 6: Verify supplier group exists in the database =====
+    // ===== STEP 6: Verify in database =====
     Logger.step(6, 'Verify supplier group exists in the database');
     const found = await database.query<{ display_name: string }>(
       `SELECT display_name FROM supplier_groups WHERE display_name = $1 LIMIT 1`,
@@ -92,7 +89,7 @@ test.describe('Supplier Groups Management', () => {
     expect(found[0].display_name).toBe(groupName);
     Logger.success(`Supplier group "${groupName}" confirmed in database`);
 
-    // ===== STEP 7: Delete supplier group from the database =====
+    // ===== STEP 7: Delete from database =====
     Logger.step(7, 'Delete supplier group from the database');
     const deleted = await database.query<{ id: string }>(
       `DELETE FROM supplier_groups WHERE display_name = $1 RETURNING id`,
