@@ -1,7 +1,7 @@
 import { test, expect } from '../../fixtures/test-fixtures';
 import { Logger } from '../../utils/logger';
 
-test.describe('Supplier Groups Management', () => {
+test.describe('Precondition Check. Looking for active organizations', () => {
   test.beforeEach(async ({ authenticatedPage, dashboardPage, organizationPage }) => {
     void authenticatedPage;
 

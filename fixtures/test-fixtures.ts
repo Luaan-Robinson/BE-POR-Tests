@@ -43,8 +43,8 @@ class TestCleanup {
   }
 
   async cleanup(): Promise<void> {
-    if (!process.env.DATABASE_URL || (process.env.CI && !process.env.DATABASE_URL)) {
-      Logger.info('Skipping database cleanup - no DATABASE_URL or CI without database');
+    if (!process.env.DATABASE_URL) {
+      Logger.info('Skipping database cleanup - no DATABASE_URL configured');
       this.usersToCleanup = [];
       this.organizationsToCleanup = [];
       return;
@@ -95,12 +95,6 @@ class TestCleanup {
 
 export const test = base.extend<CustomFixtures>({
   database: async ({}, use) => {
-    if (process.env.CI && !process.env.DATABASE_URL) {
-      Logger.info('Skipping database connection - CI without DATABASE_URL');
-      await use(DatabaseHelper);
-      return;
-    }
-
     if (process.env.DATABASE_URL) {
       try {
         await DatabaseHelper.connect();
@@ -108,7 +102,7 @@ export const test = base.extend<CustomFixtures>({
         Logger.warning('Could not connect to database', error);
       }
     } else {
-      Logger.info('Skipping database connection - no DATABASE_URL');
+      Logger.info('Skipping database connection - no DATABASE_URL configured');
     }
 
     await use(DatabaseHelper);
@@ -118,11 +112,6 @@ export const test = base.extend<CustomFixtures>({
     const cleanup = new TestCleanup();
     await use(cleanup);
 
-    if (process.env.CI && !process.env.DATABASE_URL) {
-      Logger.info('Skipping test cleanup - CI without DATABASE_URL');
-      return;
-    }
-
     if (process.env.DATABASE_URL) {
       try {
         await DatabaseHelper.connect();
@@ -131,7 +120,7 @@ export const test = base.extend<CustomFixtures>({
       }
       await cleanup.cleanup();
     } else {
-      Logger.info('Skipping test cleanup - no DATABASE_URL');
+      Logger.info('Skipping test cleanup - no DATABASE_URL configured');
     }
   },
 
