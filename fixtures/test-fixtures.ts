@@ -3,6 +3,8 @@ import { SignInPage } from '../pages/SignInPage';
 import { SignUpPage } from '../pages/SignUpPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { OrganizationPage } from '../pages/OrganizationPage';
+import { ClientsPage } from '../pages/ClientsPage';
+import { SupplierGroupsPage } from '../pages/SupplierGroupsPage';
 import { DatabaseHelper } from '../utils/database-helper';
 import testConfig from '../config/test-config';
 import { Logger } from '../utils/logger';
@@ -15,9 +17,11 @@ type CustomFixtures = {
   signUpPage: SignUpPage;
   dashboardPage: DashboardPage;
   organizationPage: OrganizationPage;
-  authenticatedPage: void; // Auto-authenticates user
-  database: typeof DatabaseHelper; // Database helper instance
-  testCleanup: TestCleanup; // Automatic cleanup tracking
+  clientsPage: ClientsPage;
+  supplierGroupsPage: SupplierGroupsPage;
+  authenticatedPage: void;
+  database: typeof DatabaseHelper;
+  testCleanup: TestCleanup;
 };
 
 /**
@@ -28,27 +32,17 @@ class TestCleanup {
   private usersToCleanup: string[] = [];
   private organizationsToCleanup: string[] = [];
 
-  /**
-   * Register a user email for cleanup after test
-   */
   registerUser(email: string): void {
     this.usersToCleanup.push(email);
     Logger.debug(`Registered user for cleanup: ${email}`);
   }
 
-  /**
-   * Register an organization slug for cleanup after test
-   */
   registerOrganization(slug: string): void {
     this.organizationsToCleanup.push(slug);
     Logger.debug(`Registered organization for cleanup: ${slug}`);
   }
 
-  /**
-   * Clean up all registered resources
-   */
   async cleanup(): Promise<void> {
-    // Skip cleanup if no database URL or in CI without database
     if (!process.env.DATABASE_URL || (process.env.CI && !process.env.DATABASE_URL)) {
       Logger.info('Skipping database cleanup - no DATABASE_URL or CI without database');
       this.usersToCleanup = [];
@@ -58,7 +52,6 @@ class TestCleanup {
 
     Logger.info('Starting test cleanup...');
 
-    // Ensure database is connected before cleanup
     try {
       await DatabaseHelper.connect();
     } catch (error) {
@@ -66,7 +59,6 @@ class TestCleanup {
       return;
     }
 
-    // Clean up organizations first (may have foreign key dependencies)
     for (const slug of this.organizationsToCleanup) {
       try {
         await DatabaseHelper.deleteOrganizationBySlug(slug);
@@ -76,7 +68,6 @@ class TestCleanup {
       }
     }
 
-    // Clean up users
     for (const email of this.usersToCleanup) {
       try {
         await DatabaseHelper.deleteUserByEmail(email);
@@ -90,14 +81,10 @@ class TestCleanup {
       `Cleanup complete: ${this.usersToCleanup.length} users, ${this.organizationsToCleanup.length} orgs`
     );
 
-    // Clear arrays
     this.usersToCleanup = [];
     this.organizationsToCleanup = [];
   }
 
-  /**
-   * Get cleanup statistics
-   */
   getStats(): { users: number; organizations: number } {
     return {
       users: this.usersToCleanup.length,
@@ -107,19 +94,13 @@ class TestCleanup {
 }
 
 export const test = base.extend<CustomFixtures>({
-  /**
-   * Database fixture - provides access to database helper
-   */
-  // eslint-disable-next-line no-empty-pattern
   database: async ({}, use) => {
-    // Skip database connection in CI without DATABASE_URL
     if (process.env.CI && !process.env.DATABASE_URL) {
       Logger.info('Skipping database connection - CI without DATABASE_URL');
       await use(DatabaseHelper);
       return;
     }
 
-    // Only connect if DATABASE_URL exists
     if (process.env.DATABASE_URL) {
       try {
         await DatabaseHelper.connect();
@@ -131,82 +112,58 @@ export const test = base.extend<CustomFixtures>({
     }
 
     await use(DatabaseHelper);
-    // Don't close connection here - let global teardown handle it
   },
 
-  /**
-   * Test cleanup fixture - automatic cleanup of test data
-   */
-  // eslint-disable-next-line no-empty-pattern
   testCleanup: async ({}, use) => {
     const cleanup = new TestCleanup();
     await use(cleanup);
 
-    // Skip cleanup in CI without DATABASE_URL
     if (process.env.CI && !process.env.DATABASE_URL) {
       Logger.info('Skipping test cleanup - CI without DATABASE_URL');
       return;
     }
 
-    // Only attempt cleanup if DATABASE_URL exists
     if (process.env.DATABASE_URL) {
-      // Ensure database is connected before cleanup
       try {
         await DatabaseHelper.connect();
       } catch (error) {
         Logger.warning('Could not connect to database for cleanup', error);
       }
-
-      // Cleanup runs after test completes
       await cleanup.cleanup();
     } else {
       Logger.info('Skipping test cleanup - no DATABASE_URL');
     }
   },
 
-  /**
-   * Sign In Page fixture
-   */
   signInPage: async ({ page }, use) => {
-    const signInPage = new SignInPage(page);
-    await use(signInPage);
+    await use(new SignInPage(page));
   },
 
-  /**
-   * Sign Up Page fixture
-   */
   signUpPage: async ({ page }, use) => {
-    const signUpPage = new SignUpPage(page);
-    await use(signUpPage);
+    await use(new SignUpPage(page));
   },
 
-  /**
-   * Dashboard Page fixture
-   */
   dashboardPage: async ({ page }, use) => {
-    const dashboardPage = new DashboardPage(page);
-    await use(dashboardPage);
+    await use(new DashboardPage(page));
   },
 
-  /**
-   * Organization Page fixture
-   */
   organizationPage: async ({ page }, use) => {
-    const organizationPage = new OrganizationPage(page);
-    await use(organizationPage);
+    await use(new OrganizationPage(page));
   },
 
-  /**
-   * Authenticated Page Fixture
-   * Automatically signs in the user before the test runs
-   * Use this for tests that require authentication
-   */
+  clientsPage: async ({ page }, use) => {
+    await use(new ClientsPage(page));
+  },
+
+  supplierGroupsPage: async ({ page }, use) => {
+    await use(new SupplierGroupsPage(page));
+  },
+
   authenticatedPage: async ({ page }, use) => {
     Logger.info('🔐 Setting up authenticated session');
 
     const signInPage = new SignInPage(page);
 
-    // Navigate and sign in
     await signInPage.navigateToHome();
     await page.click('a:has-text("Sign In")');
     await signInPage.signIn(
@@ -215,13 +172,10 @@ export const test = base.extend<CustomFixtures>({
       true
     );
 
-    // Wait for dashboard to confirm successful login
     await page.waitForURL('**/dashboard', { timeout: 15000 });
     Logger.success('✅ User authenticated and on dashboard');
 
     await use();
-
-    // Cleanup is handled by browser context closure
   },
 });
 
