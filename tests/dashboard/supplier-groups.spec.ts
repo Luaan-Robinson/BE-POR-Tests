@@ -91,9 +91,21 @@ test.describe('Precondition Check. Looking for active organizations', () => {
 
     // ===== STEP 7: Delete from database =====
     Logger.step(7, 'Delete supplier group from the database');
-    const deleted = await database.query<{ id: string }>(
-      `DELETE FROM supplier_groups WHERE display_name = $1 RETURNING id`,
+    const supplierGroup = await database.query<{ id: string }>(
+      `SELECT id FROM supplier_groups WHERE display_name = $1 LIMIT 1`,
       [groupName]
+    );
+    expect(supplierGroup.length).toBe(1);
+    const supplierGroupId = supplierGroup[0].id;
+
+    // Remove junction table rows first to satisfy foreign key constraint
+    await database.query(`DELETE FROM suppliers_to_supplier_groups WHERE supplier_group_id = $1`, [
+      supplierGroupId,
+    ]);
+
+    const deleted = await database.query<{ id: string }>(
+      `DELETE FROM supplier_groups WHERE id = $1 RETURNING id`,
+      [supplierGroupId]
     );
     expect(deleted.length).toBe(1);
     Logger.success(`Supplier group "${groupName}" deleted from database (id: ${deleted[0].id})`);
