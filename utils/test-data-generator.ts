@@ -62,23 +62,24 @@ export class TestDataGenerator {
   }
 
   /**
-   * Generate organization data with test prefix
-   * Slug includes prefix for easy identification and cleanup
+   * Generate organization data with test prefix.
+   *
+   * Name and slug are built purely from a timestamp and a short alphanumeric
+   * random string so they are always URL-safe and form-valid, regardless of
+   * locale or faker output.
+   *
+   * Example output:
+   *   name: "Test Org 1748291234567 ab3f"
+   *   slug: "test-org-1748291234567-ab3f"
    */
   static generateOrganization(): OrganizationData {
-    const companyName = faker.company.name();
     const timestamp = Date.now();
-    const random = faker.string.alphanumeric(4);
+    const random = faker.string.alphanumeric(4).toLowerCase();
 
-    // Add test prefix and timestamp to make slug unique and identifiable
-    const slug = this.generateSlug(
-      `${testConfig.testData.testOrgPrefix}${timestamp}-${random}-${companyName}`
-    );
+    const name = `Test Org ${timestamp} ${random}`;
+    const slug = `${testConfig.testData.testOrgPrefix}${timestamp}-${random}`;
 
-    return {
-      name: `Test ${companyName}`,
-      slug: slug,
-    };
+    return { name, slug };
   }
 
   /**
@@ -113,7 +114,6 @@ export class TestDataGenerator {
 
   /**
    * Generate unique identifier for test resources
-   * Useful for creating unique test data that can be tracked
    */
   static generateTestId(): string {
     return `test-${Date.now()}-${faker.string.alphanumeric(6)}`;

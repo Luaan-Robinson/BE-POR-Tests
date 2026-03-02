@@ -10,8 +10,8 @@ import { Logger } from './logger';
 // Database schema types (matching auth-schema.ts)
 interface User {
   id: string;
-  name: string; // Full name field
-  surname: string; // Last name field
+  name: string;
+  surname: string;
   email: string;
   emailVerified: boolean;
   image: string | null;
@@ -45,7 +45,6 @@ export class DatabaseHelper {
 
   /**
    * Initialize database connection
-   * Call this once before running tests
    */
   static async connect(): Promise<void> {
     if (this.pool) {
@@ -66,7 +65,6 @@ export class DatabaseHelper {
       connectionTimeoutMillis: 10000,
     });
 
-    // Test the connection
     try {
       await this.pool.query('SELECT 1');
       Logger.success('Database connected successfully');
@@ -86,7 +84,6 @@ export class DatabaseHelper {
 
   /**
    * Close database connection
-   * Call this after all tests complete
    */
   static async disconnect(): Promise<void> {
     if (this.pool) {
@@ -98,7 +95,6 @@ export class DatabaseHelper {
 
   /**
    * Execute raw SQL query
-   * Useful for complex operations
    */
   static async query<T>(sql: string, params: unknown[] = []): Promise<T[]> {
     if (!this.pool) {
@@ -116,7 +112,6 @@ export class DatabaseHelper {
 
   /**
    * Find user by email
-   * Returns null if user doesn't exist
    */
   static async findUserByEmail(email: string): Promise<User | null> {
     try {
@@ -149,23 +144,19 @@ export class DatabaseHelper {
 
   /**
    * Delete user by email
-   * Returns true if user was deleted, false if not found
    */
   static async deleteUserByEmail(email: string): Promise<boolean> {
     try {
-      // First find the user to get their ID
       const user = await this.findUserByEmail(email);
       if (!user) {
         return false;
       }
 
-      // Delete related records first due to foreign key constraints
       await this.query('DELETE FROM session WHERE user_id = $1', [user.id]);
       await this.query('DELETE FROM account WHERE user_id = $1', [user.id]);
       await this.query('DELETE FROM member WHERE user_id = $1', [user.id]);
       await this.query('DELETE FROM invitation WHERE inviter_id = $1', [user.id]);
 
-      // Finally delete the user
       const result = await this.query('DELETE FROM "user" WHERE id = $1 RETURNING id', [user.id]);
 
       const deleted = result.length > 0;
@@ -184,7 +175,6 @@ export class DatabaseHelper {
    */
   static async deleteUserById(userId: string): Promise<boolean> {
     try {
-      // Delete related records first due to foreign key constraints
       await this.query('DELETE FROM session WHERE user_id = $1', [userId]);
       await this.query('DELETE FROM account WHERE user_id = $1', [userId]);
       await this.query('DELETE FROM member WHERE user_id = $1', [userId]);
@@ -247,23 +237,26 @@ export class DatabaseHelper {
   }
 
   /**
-   * Delete organization by slug
-   * Returns true if organization was deleted, false if not found
+   * Delete organization by slug.
+   * Nullifies active_organization_id in sessions first to avoid FK constraint violations.
    */
   static async deleteOrganizationBySlug(slug: string): Promise<boolean> {
     try {
-      // First find the organization to get its ID
       const org = await this.findOrganizationBySlug(slug);
       if (!org) {
         return false;
       }
 
-      // Delete related records first due to foreign key constraints
+      // Nullify references in active sessions before deleting
+      await this.query(
+        'UPDATE session SET active_organization_id = NULL WHERE active_organization_id = $1',
+        [org.id]
+      );
+
       await this.query('DELETE FROM member WHERE organization_id = $1', [org.id]);
       await this.query('DELETE FROM invitation WHERE organization_id = $1', [org.id]);
       await this.query('DELETE FROM organization_role WHERE organization_id = $1', [org.id]);
 
-      // Finally delete the organization
       const result = await this.query('DELETE FROM organization WHERE id = $1 RETURNING id', [
         org.id,
       ]);
@@ -280,11 +273,17 @@ export class DatabaseHelper {
   }
 
   /**
-   * Delete organization by ID
+   * Delete organization by ID.
+   * Nullifies active_organization_id in sessions first to avoid FK constraint violations.
    */
   static async deleteOrganizationById(orgId: string): Promise<boolean> {
     try {
-      // Delete related records first due to foreign key constraints
+      // Nullify references in active sessions before deleting
+      await this.query(
+        'UPDATE session SET active_organization_id = NULL WHERE active_organization_id = $1',
+        [orgId]
+      );
+
       await this.query('DELETE FROM member WHERE organization_id = $1', [orgId]);
       await this.query('DELETE FROM invitation WHERE organization_id = $1', [orgId]);
       await this.query('DELETE FROM organization_role WHERE organization_id = $1', [orgId]);
@@ -316,12 +315,10 @@ export class DatabaseHelper {
   }
 
   /**
-   * Clean up test data by email pattern
-   * Useful for cleaning up all test users after test runs
+   * Clean up test users by email pattern
    */
   static async cleanupTestUsers(emailPattern: string = '%test%'): Promise<number> {
     try {
-      // First get all users matching the pattern
       const users = await this.query<{ id: string }>('SELECT id FROM "user" WHERE email LIKE $1', [
         emailPattern,
       ]);
@@ -330,7 +327,6 @@ export class DatabaseHelper {
         return 0;
       }
 
-      // Delete related records for each user
       for (const user of users) {
         await this.query('DELETE FROM session WHERE user_id = $1', [user.id]);
         await this.query('DELETE FROM account WHERE user_id = $1', [user.id]);
@@ -338,7 +334,6 @@ export class DatabaseHelper {
         await this.query('DELETE FROM invitation WHERE inviter_id = $1', [user.id]);
       }
 
-      // Delete the users
       const result = await this.query('DELETE FROM "user" WHERE email LIKE $1 RETURNING id', [
         emailPattern,
       ]);
@@ -355,11 +350,11 @@ export class DatabaseHelper {
   }
 
   /**
-   * Clean up test organizations by slug pattern
+   * Clean up test organizations by slug pattern.
+   * Nullifies active_organization_id in sessions first.
    */
   static async cleanupTestOrganizations(slugPattern: string = '%test%'): Promise<number> {
     try {
-      // First get all organizations matching the pattern
       const orgs = await this.query<{ id: string }>(
         'SELECT id FROM organization WHERE slug LIKE $1',
         [slugPattern]
@@ -369,14 +364,17 @@ export class DatabaseHelper {
         return 0;
       }
 
-      // Delete related records for each organization
       for (const org of orgs) {
+        // Nullify references in active sessions before deleting
+        await this.query(
+          'UPDATE session SET active_organization_id = NULL WHERE active_organization_id = $1',
+          [org.id]
+        );
         await this.query('DELETE FROM member WHERE organization_id = $1', [org.id]);
         await this.query('DELETE FROM invitation WHERE organization_id = $1', [org.id]);
         await this.query('DELETE FROM organization_role WHERE organization_id = $1', [org.id]);
       }
 
-      // Delete the organizations
       const result = await this.query('DELETE FROM organization WHERE slug LIKE $1 RETURNING id', [
         slugPattern,
       ]);
@@ -436,7 +434,7 @@ export class DatabaseHelper {
   }
 
   /**
-   * Get user count for testing
+   * Get user count
    */
   static async getUserCount(): Promise<number> {
     try {
@@ -449,7 +447,7 @@ export class DatabaseHelper {
   }
 
   /**
-   * Get organization count for testing
+   * Get organization count
    */
   static async getOrganizationCount(): Promise<number> {
     try {
@@ -464,7 +462,7 @@ export class DatabaseHelper {
   }
 
   /**
-   * Get member count for testing
+   * Get member count
    */
   static async getMemberCount(): Promise<number> {
     try {

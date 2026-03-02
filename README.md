@@ -6,7 +6,7 @@ Production-ready Playwright automation testing framework with database integrati
 
 - **Self-Contained Tests**: Each test manages its own data lifecycle
 - **Self-Isolating Tests**: No dependencies between tests
-- **Database Integration**: Direct database verification and cleanup using Drizzle ORM
+- **Database Integration**: Direct database verification and cleanup using raw PostgreSQL (`pg`)
 - **Automatic Cleanup**: Test data is automatically cleaned up after each test
 - **Page Object Model**: Maintainable, reusable page objects
 - **TypeScript**: Fully type-safe test development
@@ -38,7 +38,7 @@ Edit `.env` with your configuration:
 
 ```env
 BASE_URL=http://localhost:3000
-DATABASE_URL=postgresql://postgres:as98d7f98798dafdsafas@localhost:5432/be_por
+DATABASE_URL=postgresql://postgres:password@localhost:5432/be_por
 TEST_USER_EMAIL=your-test-user@example.com
 TEST_USER_PASSWORD=your-password
 ```
@@ -49,8 +49,6 @@ TEST_USER_PASSWORD=your-password
 cd ../your-app-directory
 docker-compose up
 ```
-
-Wait for the application to be ready at http://localhost:3000
 
 ### 4. Run Tests
 
@@ -63,28 +61,35 @@ npm test
 ```
 be-por-automation-tests/
 ├── config/
+│   ├── environments.ts         # Environment configurations (unused, reserved)
 │   └── test-config.ts          # Central configuration
 ├── fixtures/
 │   └── test-fixtures.ts        # Playwright fixtures with database support
 ├── pages/
 │   ├── SignInPage.ts           # Sign-in page object
 │   ├── SignUpPage.ts           # Sign-up page object
-│   ├── DashboardPage.ts        # Dashboard page object
-│   └── OrganizationPage.ts    # Organization page object
+│   ├── DashboardPage.ts        # Dashboard / sidebar navigation page object
+│   ├── OrganizationPage.ts     # Organization list + create form page object
+│   ├── ClientsPage.ts          # Clients page object
+│   ├── SuppliersPage.ts        # Suppliers page object
+│   └── SupplierGroupsPage.ts   # Supplier Groups page object
 ├── tests/
 │   ├── auth/
-│   │   ├── signin.spec.ts     # Authentication tests
-│   │   └── signup.spec.ts     # Registration tests with DB verification
+│   │   ├── signin.spec.ts      # Authentication tests
+│   │   └── signup.spec.ts      # Registration tests
 │   └── dashboard/
-│       └── organization-create.spec.ts  # Organization tests with DB verification
+│       ├── organization.spec.ts        # Organization create/verify/delete
+│       ├── clients.spec.ts             # Client create/verify/delete
+│       ├── suppliers.spec.ts           # Supplier create/verify/delete
+│       └── supplier-groups.spec.ts     # Supplier group create/verify/delete
 ├── utils/
-│   ├── database-helper.ts      # Database operations (Drizzle ORM)
+│   ├── database-helper.ts      # Database operations (raw pg)
 │   ├── logger.ts               # Logging utility
-│   └── test-data-generator.ts  # Test data generation
+│   └── test-data-generator.ts  # Test data generation (faker.js)
 ├── scripts/
 │   └── cleanup-test-data.ts    # Manual cleanup script
-├── global-setup.ts             # Global test setup (DB connection)
-├── global-teardown.ts          # Global test teardown (DB cleanup)
+├── global-setup.ts             # Global test setup
+├── global-teardown.ts          # Global test teardown
 ├── playwright.config.ts        # Playwright configuration
 ├── package.json
 └── README.md
@@ -96,37 +101,22 @@ be-por-automation-tests/
 
 Each test:
 
-1. Creates its own test data
+1. Creates its own test data (where applicable)
 2. Performs test actions
-3. Verifies results (including database)
-4. Automatically cleans up created data
+3. Verifies results (UI + database)
+4. Cleans up created data directly via database queries
 
-Example:
+### Precondition: Active Organization
 
-```typescript
-test('should create user', async ({ signUpPage, database, testCleanup }) => {
-  // 1. Generate unique test data
-  const user = TestDataGenerator.generateUser();
-  testCleanup.registerUser(user.email); // Auto-cleanup
-
-  // 2. Perform action
-  await signUpPage.signUp(user);
-
-  // 3. Verify in database
-  const dbUser = await database.findUserByEmail(user.email);
-  expect(dbUser).not.toBeNull();
-
-  // 4. Cleanup happens automatically
-});
-```
+Dashboard tests (clients, suppliers, supplier groups) require at least one organization to exist and be activated. The `beforeEach` hooks in these test files handle activation automatically — but you must have created at least one organization first (via the organization test or manually).
 
 ### Database Integration
 
 Tests can:
 
-- Verify data was created in database
-- Query database for test validation
-- Clean up test data automatically
+- Verify data was created in the database
+- Query the database for test validation
+- Clean up test data after each test
 - Prevent test data pollution
 
 ## 🎮 Running Tests
@@ -140,25 +130,29 @@ npm test
 ### Specific Test Suites
 
 ```bash
-npm run test:auth          # All authentication tests
-npm run test:signin        # Sign-in tests only
-npm run test:signup        # Sign-up tests only
-npm run test:organization  # Organization tests
+npm run test:auth             # All authentication tests
+npm run test:signin           # Sign-in tests only
+npm run test:signup           # Sign-up tests only
+npm run test:organization     # Organization tests
+npm run test:clients          # Clients tests
+npm run test:suppliers        # Suppliers tests
+npm run test:supplier-groups  # Supplier groups tests
+npm run test:dashboard        # All dashboard tests
 ```
 
-### With UI
+### With UI / Debug
 
 ```bash
-npm run test:ui           # Interactive UI mode
-npm run test:headed       # See browser
-npm run test:debug        # Debug mode with DevTools
+npm run test:ui       # Interactive UI mode
+npm run test:headed   # See browser
+npm run test:debug    # Debug mode with DevTools
 ```
 
 ### Specific Browser
 
 ```bash
-npm run test:chrome       # Chromium only
-npm run test:firefox      # Firefox only
+npm run test:chrome   # Chromium only
+npm run test:firefox  # Firefox only
 ```
 
 ### View Report
@@ -169,52 +163,43 @@ npm run report
 
 ## 🗄️ Database Operations
 
-### Automatic Cleanup
-
-Test data is automatically cleaned up via the `testCleanup` fixture:
+### Automatic Cleanup (via `testCleanup` fixture)
 
 ```typescript
 test('my test', async ({ testCleanup }) => {
   const user = TestDataGenerator.generateUser();
-  testCleanup.registerUser(user.email); // Cleaned up after test
+  testCleanup.registerUser(user.email); // cleaned up after test
 
   const org = TestDataGenerator.generateOrganization();
-  testCleanup.registerOrganization(org.slug); // Cleaned up after test
+  testCleanup.registerOrganization(org.slug); // cleaned up after test
 });
 ```
 
 ### Manual Cleanup
 
-Clean up all test data manually:
-
 ```bash
 npm run db:cleanup
 ```
 
-### Database Helper
-
-Direct database access in tests:
+### Direct Database Access in Tests
 
 ```typescript
-// Find user
+// Run any SQL
+const rows = await database.query<{ display_name: string }>(
+  `SELECT display_name FROM client WHERE display_name = $1 LIMIT 1`,
+  [clientName]
+);
+
+// Convenience helpers
 const user = await database.findUserByEmail(email);
-
-// Verify existence
-const exists = await database.verifyUserExists(email);
-
-// Delete specific data
-await database.deleteUserByEmail(email);
+const org = await database.findOrganizationBySlug(slug);
 await database.deleteOrganizationBySlug(slug);
-
-// Query directly
-const results = await database.query('SELECT * FROM users WHERE email = $1', [email]);
+await database.deleteUserByEmail(email);
 ```
 
 ## ✍️ Writing New Tests
 
-### 1. Use Test Template
-
-Tests should follow this pattern:
+### Template
 
 ```typescript
 import { test, expect } from '../../fixtures/test-fixtures';
@@ -225,15 +210,12 @@ test.describe('My Feature', () => {
   test('should do something', async ({ page, database, testCleanup }) => {
     Logger.testStart('Test Name');
 
-    // Generate test data
     const data = TestDataGenerator.generateUser();
     testCleanup.registerUser(data.email);
 
-    // Test steps
     Logger.step(1, 'Do something');
     // ... test logic ...
 
-    // Verify in database if needed
     const result = await database.findUserByEmail(data.email);
     expect(result).not.toBeNull();
 
@@ -242,48 +224,15 @@ test.describe('My Feature', () => {
 });
 ```
 
-### 2. Self-Isolation Checklist
+### Self-Isolation Checklist
 
 - ✅ Test creates its own data
 - ✅ Test doesn't depend on other tests
-- ✅ Test registers data for cleanup
+- ✅ Test registers or manually deletes data for cleanup
 - ✅ Test can run in any order
 - ✅ Test can run multiple times
 
-### 3. Database Verification
-
-When to verify in database:
-
-- User registration
-- Organization creation
-- Data persistence tests
-- Data integrity tests
-
-When NOT to verify in database:
-
-- Pure UI tests
-- Navigation tests
-- Validation tests
-
 ## 🔧 Configuration
-
-### Test Configuration (`config/test-config.ts`)
-
-```typescript
-{
-  baseUrl: 'http://localhost:3000',
-  database: {
-    url: 'postgresql://...',
-    cleanupOnStart: false,  // Clean before tests
-    cleanupOnEnd: true,     // Clean after tests
-  },
-  timeouts: {
-    short: 5000,
-    medium: 10000,
-    long: 30000,
-  }
-}
-```
 
 ### Environment Variables (`.env`)
 
@@ -301,65 +250,47 @@ DEBUG=false
 
 ### Test Email Domain
 
-All test users use a special domain for easy identification:
+All generated test users use a dedicated domain:
 
-```typescript
-// Generated emails: test-john-1234567890-abcd@playwright-test.example.com
+```
+test-john-1234567890-abcd@playwright-test.example.com
 ```
 
 ### Test Organization Prefix
 
-All test organizations use a special prefix:
+All generated test organizations use a prefix:
 
-```typescript
-// Generated slugs: test-org-1234567890-abcd-company-name
+```
+test-org-1234567890-abcd-company-name
 ```
 
-This makes cleanup easy and prevents collision with real data.
+This makes bulk cleanup safe and prevents collision with real data.
 
 ## 🐛 Debugging
 
-### Enable Debug Logging
-
 ```bash
+# Enable verbose logging
 DEBUG=true npm test
-```
 
-### Debug Single Test
-
-```bash
+# Debug a single file
 npm run test:debug tests/auth/signup.spec.ts
-```
 
-### View Database State
-
-```typescript
+# Check DB state
 const userCount = await database.getUserCount();
-const orgCount = await database.getOrganizationCount();
-console.log(`Users: ${userCount}, Orgs: ${orgCount}`);
+const orgCount  = await database.getOrganizationCount();
 ```
 
 ## 🎯 Best Practices
 
-1. **Always use TestDataGenerator** for test data
-2. **Always register created data** with testCleanup
-3. **Verify critical data** in database
-4. **Use Logger** for clear test output
-5. **Keep tests independent** - no shared state
-6. **Use Page Objects** - don't write raw selectors in tests
-7. **Handle async properly** - always await database operations
+1. Use `TestDataGenerator` for all generated test data
+2. Register created data with `testCleanup`, or delete it manually at the end of the test
+3. Verify critical data in the database, not just the UI
+4. Use `Logger` for clear, timestamped test output
+5. Keep tests independent — no shared mutable state between tests
+6. Use Page Objects — keep raw selectors out of test files
+7. Always `await` database operations
 
 ## 🔄 CI/CD Integration
-
-Tests are CI/CD ready:
-
-- Automatic browser installation
-- Parallel execution
-- Retry on failure
-- Multiple report formats (HTML, JSON, JUnit)
-- Database cleanup
-
-### GitHub Actions Example
 
 ```yaml
 - name: Run tests
@@ -371,20 +302,11 @@ Tests are CI/CD ready:
     TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
 ```
 
-## 📚 Additional Resources
+## 📚 Resources
 
 - [Playwright Documentation](https://playwright.dev)
-- [Drizzle ORM Documentation](https://orm.drizzle.team)
 - [Page Object Model Pattern](https://playwright.dev/docs/pom)
-
-## 🤝 Contributing
-
-1. Follow the existing test patterns
-2. Ensure tests are self-contained
-3. Add database verification for data operations
-4. Register all created data for cleanup
-5. Run tests locally before committing
-6. Update documentation as needed
+- [Faker.js Documentation](https://fakerjs.dev)
 
 ## 📝 License
 
