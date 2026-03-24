@@ -30,7 +30,8 @@
   "lint": "eslint . --ext .ts",
   "format": "prettier --write \"**/*.{ts,json,md}\"",
   "format:check": "prettier --check \"**/*.{ts,json,md}\"",
-  "db:cleanup": "node --import tsx/esm scripts/cleanup-test-data.ts"
+  "db:cleanup": "node --import tsx/esm scripts/cleanup-test-data.ts",
+  "test:skus": "playwright test tests/dashboard/skus.spec.ts"
 },
   "dependencies": {
     "drizzle-orm": "^0.44.7",
