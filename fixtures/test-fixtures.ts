@@ -7,6 +7,7 @@ import { ClientsPage } from '../pages/ClientsPage';
 import { SupplierGroupsPage } from '../pages/SupplierGroupsPage';
 import { SuppliersPage } from '../pages/SuppliersPage';
 import { SkuCategoriesPage } from '../pages/SkuCategoriesPage';
+import { SkuClassificationsPage } from '../pages/SkuClassificationsPage';
 import { DatabaseHelper } from '../utils/database-helper';
 import testConfig from '../config/test-config';
 import { Logger } from '../utils/logger';
@@ -23,6 +24,7 @@ type CustomFixtures = {
   supplierGroupsPage: SupplierGroupsPage;
   suppliersPage: SuppliersPage;
   skuCategoriesPage: SkuCategoriesPage;
+  skuClassificationsPage: SkuClassificationsPage;
   authenticatedPage: void;
   database: typeof DatabaseHelper;
   testCleanup: TestCleanup;
@@ -158,6 +160,10 @@ export const test = base.extend<CustomFixtures>({
 
   skuCategoriesPage: async ({ page }, use) => {
     await use(new SkuCategoriesPage(page));
+  },
+
+  skuClassificationsPage: async ({ page }, use) => {
+    await use(new SkuClassificationsPage(page));
   },
 
   authenticatedPage: async ({ page }, use) => {

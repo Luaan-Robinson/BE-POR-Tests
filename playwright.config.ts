@@ -21,7 +21,7 @@ export default defineConfig({
   // 2 workers total avoids overwhelming a local dev server with too many
   // simultaneous browser sessions. Blank-page flakiness in Firefox was caused
   // by 4 browsers all hitting the server at once during startup.
-  workers: 2,
+  workers: 3,
 
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'on-failure' }],
