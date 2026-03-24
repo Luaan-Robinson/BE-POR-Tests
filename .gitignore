@@ -57,3 +57,8 @@ pids
 
 # Playwright binaries
 .cache/
+
+
+# Auth state files
+auth-state-worker-*.json
+auth-state.json
