@@ -9,6 +9,7 @@ import { TestDataGenerator } from '../../utils/test-data-generator';
  * - Creates a unique organization
  * - Verifies it in the UI table
  * - Verifies it in the database
+ * - Cleans up any dependent data before deleting the organization
  * - Deletes it from the database
  */
 test.describe('Organization Management', () => {
@@ -19,6 +20,7 @@ test.describe('Organization Management', () => {
   });
 
   test('should create, verify and delete an organization', async ({
+    page,
     dashboardPage,
     organizationPage,
     database,
@@ -47,6 +49,12 @@ test.describe('Organization Management', () => {
     // ===== STEP 4: Verify organization appears in the UI table =====
     Logger.step(4, 'Navigate to organization list and verify in table');
     await dashboardPage.navigateToOrganization();
+    
+    // Refresh to ensure latest data
+    Logger.info('Refreshing page to ensure latest data...');
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    
     await organizationPage.waitForTableToLoad();
 
     const isInTable = await organizationPage.verifyOrganizationInTable(orgData.slug);
@@ -61,8 +69,35 @@ test.describe('Organization Management', () => {
     expect(dbOrg?.name).toBe(orgData.name);
     Logger.success(`Organization "${orgData.slug}" confirmed in database`);
 
-    // ===== STEP 6: Delete organization from the database =====
-    Logger.step(6, 'Delete organization from the database');
+    // ===== STEP 6: Clean up dependent data and delete organization =====
+    Logger.step(6, 'Clean up dependent data and delete organization from the database');
+
+    // First, find the organization ID
+    const orgId = dbOrg?.id;
+    if (orgId) {
+      // Delete any clients associated with this organization
+      const clientsDeleted = await database.query(
+        `DELETE FROM client WHERE organization_id = $1`,
+        [orgId]
+      );
+      Logger.info(`Deleted ${clientsDeleted.length} clients associated with organization`);
+
+      // Delete any suppliers associated with this organization
+      const suppliersDeleted = await database.query(
+        `DELETE FROM suppliers WHERE organization_id = $1`,
+        [orgId]
+      );
+      Logger.info(`Deleted ${suppliersDeleted.length} suppliers associated with organization`);
+
+      // Delete any supplier groups associated with this organization
+      const supplierGroupsDeleted = await database.query(
+        `DELETE FROM supplier_groups WHERE organization_id = $1`,
+        [orgId]
+      );
+      Logger.info(`Deleted ${supplierGroupsDeleted.length} supplier groups associated with organization`);
+    }
+
+    // Now delete the organization
     const deleted = await database.deleteOrganizationBySlug(orgData.slug);
     expect(deleted).toBe(true);
     Logger.success(`Organization "${orgData.slug}" deleted from database`);

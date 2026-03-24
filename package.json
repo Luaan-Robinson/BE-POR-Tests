@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "type": "module",
   "description": "Production-ready Playwright automation tests for BE POR application with database integration",
-  "author": "QA Team",
+  "author": "Luaan Robinson",
   "license": "MIT",
   "scripts": {
     "test": "playwright test",
