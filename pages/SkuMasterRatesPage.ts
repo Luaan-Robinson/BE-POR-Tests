@@ -4,67 +4,57 @@ import testConfig from '../config/test-config';
 
 /**
  * SKU Master Rates Page Object Model
- * Handles all interactions with the SKU Master Rates page including
- * the "Add Supplier to Category" dialog and table verification.
+ *
+ * KEY BEHAVIOURS:
+ * 1. When "Add Supplier to Category" is submitted and the supplier already has
+ *    rates for every SKU in that category, the app shows a toast:
+ *    "'<Supplier>' already has rates for all SKUs in '<Category>'"
+ *    No new rows are created. The test must detect this and treat the existing
+ *    rows as the thing to verify.
+ *
+ * 2. The table uses virtual scrolling — only ~30 rows are in the DOM at any
+ *    time. We therefore NEVER scan raw rows. Instead we use the built-in
+ *    Supplier filter dropdown (top of page) to reduce the visible set to just
+ *    the supplier we care about, then confirm the table is non-empty.
  */
 export class SkuMasterRatesPage {
-  // ===== NAVIGATION =====
   private readonly navLink: Locator;
-
-  // ===== PAGE HEADER =====
   private readonly addSupplierToCategoryButton: Locator;
-
-  // ===== ADD SUPPLIER DIALOG =====
   private readonly skuCategoryTrigger: Locator;
   private readonly supplierTrigger: Locator;
   private readonly addSupplierButton: Locator;
-
-  // ===== TABLE =====
   private readonly table: Locator;
-  private readonly tableRows: Locator;
 
-  /**
-   * Initialize SKU Master Rates page with locators
-   * @param page - Playwright page object
-   */
   constructor(public page: Page) {
-    // Sidebar nav link
     this.navLink = page.locator('a[data-slot="sidebar-menu-sub-button"][href="/sku-master-rates"]');
 
-    // Add Supplier to Category button (top of page, not inside dialog)
     this.addSupplierToCategoryButton = page
       .locator('button[data-slot="button"]')
       .filter({ hasText: 'Add Supplier to Category' })
       .first();
 
-    // Add Supplier dialog fields - scope to the dialog content
     const dialog = page.locator('[role="dialog"]');
-    
+
     this.skuCategoryTrigger = dialog
       .locator('button[data-slot="select-trigger"]')
       .filter({ hasText: 'Select a category' })
       .first();
-    
+
     this.supplierTrigger = dialog
       .locator('button[data-slot="select-trigger"]')
       .filter({ hasText: 'Select a supplier' })
       .first();
-    
+
     this.addSupplierButton = dialog
       .locator('button[data-slot="button"]')
       .filter({ hasText: 'Add Supplier' })
       .first();
 
-    // Table
     this.table = page.locator('table[data-testid="data-grid"]');
-    this.tableRows = page.locator('table[data-testid="data-grid"] tbody tr');
   }
 
   // ===== NAVIGATION =====
 
-  /**
-   * Click the SKU Master Rates link in the sidebar
-   */
   async navigateToSkuMasterRates(): Promise<void> {
     Logger.info('Clicking SKU Master Rates sidebar link');
     await this.navLink.waitFor({ state: 'visible', timeout: testConfig.timeouts.medium });
@@ -76,229 +66,272 @@ export class SkuMasterRatesPage {
 
   // ===== ADD SUPPLIER TO CATEGORY =====
 
-  /**
-   * Click the "Add Supplier to Category" button to open the dialog
-   */
   async clickAddSupplierToCategory(): Promise<void> {
     Logger.info('Clicking Add Supplier to Category button');
     await this.addSupplierToCategoryButton.waitFor({ state: 'visible', timeout: testConfig.timeouts.medium });
     await this.addSupplierToCategoryButton.click();
-    // Wait for the dialog to appear
     await this.page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: testConfig.timeouts.medium });
     await this.skuCategoryTrigger.waitFor({ state: 'visible', timeout: testConfig.timeouts.medium });
     Logger.success('Add Supplier dialog opened');
   }
 
-  /**
-   * Select a random SKU Category from the dropdown
-   * @returns The selected category name
-   */
   async selectRandomSkuCategory(): Promise<string> {
     Logger.info('Selecting a random SKU Category');
-    
     await this.skuCategoryTrigger.waitFor({ state: 'visible', timeout: testConfig.timeouts.short });
     await this.skuCategoryTrigger.click();
-    
-    // Wait for options to appear
     await this.page.waitForTimeout(500);
-    
-    // Get all select items
+
     const options = this.page.locator('[data-slot="select-item"]');
     const optionCount = await options.count();
-    
-    if (optionCount === 0) {
-      throw new Error('No SKU Categories found in the dropdown');
-    }
-    
-    // Choose a random option (avoid the "Select a category" placeholder if present)
+    if (optionCount === 0) throw new Error('No SKU Categories found in the dropdown');
+
     let randomIndex = Math.floor(Math.random() * optionCount);
-    
-    // If the first option is the placeholder, start from index 1
     const firstOptionText = await options.first().textContent();
     if (firstOptionText?.includes('Select a category') && optionCount > 1) {
       randomIndex = Math.floor(Math.random() * (optionCount - 1)) + 1;
     }
-    
+
     const selectedOption = options.nth(randomIndex);
     const categoryName = await selectedOption.textContent();
     await selectedOption.click();
-    
+
     Logger.info(`Selected SKU Category: ${categoryName?.trim()}`);
     return categoryName?.trim() || '';
   }
 
-  /**
-   * Select a random Supplier from the dropdown
-   * @returns The selected supplier name
-   */
   async selectRandomSupplier(): Promise<string> {
     Logger.info('Selecting a random Supplier');
-    
     await this.supplierTrigger.waitFor({ state: 'visible', timeout: testConfig.timeouts.short });
     await this.supplierTrigger.click();
-    
-    // Wait for options to appear
     await this.page.waitForTimeout(500);
-    
-    // Get all select items
+
     const options = this.page.locator('[data-slot="select-item"]');
     const optionCount = await options.count();
-    
-    if (optionCount === 0) {
-      throw new Error('No Suppliers found in the dropdown');
-    }
-    
-    // Choose a random option (avoid the "Select a supplier" placeholder if present)
+    if (optionCount === 0) throw new Error('No Suppliers found in the dropdown');
+
     let randomIndex = Math.floor(Math.random() * optionCount);
-    
-    // If the first option is the placeholder, start from index 1
     const firstOptionText = await options.first().textContent();
     if (firstOptionText?.includes('Select a supplier') && optionCount > 1) {
       randomIndex = Math.floor(Math.random() * (optionCount - 1)) + 1;
     }
-    
+
     const selectedOption = options.nth(randomIndex);
     const supplierName = await selectedOption.textContent();
     await selectedOption.click();
-    
+
     Logger.info(`Selected Supplier: ${supplierName?.trim()}`);
     return supplierName?.trim() || '';
   }
 
-  /**
-   * Click the Add Supplier button to submit the dialog
-   */
   async clickAddSupplier(): Promise<void> {
     Logger.info('Clicking Add Supplier button');
     await this.addSupplierButton.waitFor({ state: 'visible', timeout: testConfig.timeouts.short });
     await this.addSupplierButton.click();
-    // Wait for dialog to close
-    await this.page.locator('[role="dialog"]').waitFor({ state: 'hidden', timeout: testConfig.timeouts.medium }).catch(() => {
-      Logger.warning('Add Supplier dialog may still be open, continuing...');
-    });
+    // Dialog closes on success OR stays open on validation error.
+    // We give it up to medium timeout; if it stays open we just continue.
+    await this.page.locator('[role="dialog"]')
+      .waitFor({ state: 'hidden', timeout: testConfig.timeouts.medium })
+      .catch(() => Logger.warning('Add Supplier dialog may still be open, continuing...'));
     Logger.success('Add Supplier dialog submitted');
   }
 
   /**
-   * Full flow: open dialog → select category → select supplier → add
-   * @returns Object containing the selected category and supplier names
+   * Full flow: open dialog → pick random category → pick random supplier → submit.
+   *
+   * Returns:
+   *   categoryName  - the category that was selected
+   *   supplierName  - the supplier that was selected
+   *   alreadyExists - true when the app showed the "already has rates" toast,
+   *                   meaning no new rows were created but existing rows are fine
    */
-  async addSupplierToCategory(): Promise<{ categoryName: string; supplierName: string }> {
+  async addSupplierToCategory(): Promise<{
+    categoryName: string;
+    supplierName: string;
+    alreadyExists: boolean;
+  }> {
     await this.clickAddSupplierToCategory();
     const categoryName = await this.selectRandomSkuCategory();
     const supplierName = await this.selectRandomSupplier();
     await this.clickAddSupplier();
-    return { categoryName, supplierName };
+
+    // Give the app a moment to either show the "already exists" toast or
+    // commit the new rows to the database.
+    await this.page.waitForTimeout(1500);
+
+    const alreadyExists = await this.ratesAlreadyExistToastVisible(supplierName, categoryName);
+    if (alreadyExists) {
+      Logger.info(`Rates already exist for "${supplierName}" in "${categoryName}" — no new rows created`);
+    }
+
+    return { categoryName, supplierName, alreadyExists };
+  }
+
+  /**
+   * Check whether the "already has rates" info toast is currently visible.
+   * The toast text looks like:
+   *   '<Supplier>' already has rates for all SKUs in '<Category>'
+   *
+   * We do a loose contains-check so minor punctuation differences don't matter.
+   */
+  async ratesAlreadyExistToastVisible(supplierName: string, categoryName: string): Promise<boolean> {
+    try {
+      // Toast can appear in a [data-title] element or any div with matching text.
+      // We check broadly for any element containing both key strings.
+      const toast = this.page.locator('body').filter({
+        hasText: new RegExp(`already has rates.*${escapeRegex(categoryName)}`, 'i'),
+      });
+      await toast.waitFor({ state: 'visible', timeout: 2000 });
+      Logger.info('Detected "already has rates" toast');
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // ===== TABLE HELPERS =====
 
-  /**
-   * Wait for the SKU Master Rates table to be visible
-   */
   async waitForTableToLoad(): Promise<void> {
     Logger.info('Waiting for SKU Master Rates table to load');
     await this.table.waitFor({ state: 'visible', timeout: testConfig.timeouts.long });
     await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
-    // Wait a bit for all rows to render (up to 500 rows)
-    await this.page.waitForTimeout(2000);
+    await this.page.waitForTimeout(1000);
   }
 
+  // ===== SUPPLIER FILTER HELPERS =====
+
   /**
-   * Find a table row by SKU name and Supplier name
-   * The table rows have SKU in the second column and Supplier in the third column
-   * This table can have up to 500 rows per page, so we search all visible rows
-   * @param skuName - The SKU name to search for
-   * @param supplierName - The supplier name to search for
-   * @returns The row Locator or null if not found
+   * Find the Supplier filter trigger in the page's filter bar.
+   * We locate the wrapper that also contains the "Filter by supplier" label.
    */
-  async getRowBySkuAndSupplier(skuName: string, supplierName: string): Promise<Locator | null> {
-    Logger.info(`Looking for row with SKU: "${skuName}" and Supplier: "${supplierName}"`);
-    await this.waitForTableToLoad();
+  private async _getSupplierFilterTrigger(): Promise<Locator> {
+    const container = this.page.locator('div').filter({
+      has: this.page.locator('text="Filter by supplier"'),
+    }).last();
 
-    // Get all rows and search through them
-    const rowCount = await this.tableRows.count();
-    Logger.info(`Total rows in table: ${rowCount}`);
-    
-    for (let i = 0; i < rowCount; i++) {
-      const row = this.tableRows.nth(i);
-      
-      // Check if this is a section header row (has colspan)
-      const hasColspan = await row.locator('td[colspan]').count() > 0;
-      if (hasColspan) {
-        continue; // Skip section header rows
-      }
-      
-      // SKU is in the second column, Supplier in the third column
-      const skuCell = row.locator('td:nth-child(2) span[title]');
-      const supplierCell = row.locator('td:nth-child(3) span[title]');
-
-      try {
-        const skuText = await skuCell.getAttribute('title');
-        const supplierText = await supplierCell.getAttribute('title');
-        
-        if (skuText && skuText.trim() === skuName && supplierText && supplierText.trim() === supplierName) {
-          Logger.info(`Found row with SKU "${skuName}" and Supplier "${supplierName}" at row index ${i}`);
-          return row;
-        }
-      } catch (error) {
-        // cell not found in this row — continue
-        continue;
-      }
-    }
-    
-    Logger.warning(`Row with SKU "${skuName}" and Supplier "${supplierName}" not found among ${rowCount} rows`);
-    return null;
+    const trigger = container.locator('button[data-slot="select-trigger"]').first();
+    await trigger.waitFor({ state: 'visible', timeout: testConfig.timeouts.medium });
+    return trigger;
   }
 
   /**
-   * Check whether any SKU Master Rate entry exists for a given supplier
-   * @param supplierName - The supplier name to search for
+   * Click a named option in the currently-open select portal.
+   * Tries [role="option"] first, falls back to [data-slot="select-item"].
+   */
+  private async _clickSelectOption(optionText: string): Promise<void> {
+    const byRole = this.page.locator('[role="option"]').filter({ hasText: optionText }).first();
+    const bySlot = this.page.locator('[data-slot="select-item"]').filter({ hasText: optionText }).first();
+
+    try {
+      await byRole.waitFor({ state: 'visible', timeout: 3000 });
+      await byRole.click();
+    } catch {
+      await bySlot.waitFor({ state: 'visible', timeout: testConfig.timeouts.short });
+      await bySlot.click();
+    }
+  }
+
+  private async _waitForTableToFilter(): Promise<void> {
+    await this.page.waitForLoadState(testConfig.waitStrategies.loadStates.network);
+    await this.page.waitForTimeout(800);
+  }
+
+  /**
+   * Returns true if the table has at least one genuine data row (not a
+   * section-header row or virtual-scroll spacer — both use td[colspan]).
+   */
+  private async _tableHasDataRows(): Promise<boolean> {
+    const dataRows = this.page.locator(
+      'table[data-testid="data-grid"] tbody tr:not(:has(td[colspan]))'
+    );
+    const count = await dataRows.count();
+    Logger.info(`Data rows visible after filter: ${count}`);
+    return count > 0;
+  }
+
+  private async _resetSupplierFilter(trigger: Locator): Promise<void> {
+    try {
+      await trigger.click();
+      await this.page.waitForTimeout(400);
+      await this._clickSelectOption('All');
+      await this._waitForTableToFilter();
+      Logger.info('Supplier filter reset to All');
+    } catch {
+      Logger.warning('Could not reset supplier filter — continuing anyway');
+    }
+  }
+
+  /**
+   * Use the page's Supplier filter to narrow the table to just the target
+   * supplier, then confirm at least one data row is present.
+   * This sidesteps virtual scrolling entirely.
    */
   async anyRateExistsForSupplier(supplierName: string): Promise<boolean> {
-    Logger.info(`Looking for any rate entry with Supplier: "${supplierName}"`);
-    await this.waitForTableToLoad();
+    Logger.info(`Filtering table by Supplier: "${supplierName}"`);
 
-    // Get all rows and search through them
-    const rowCount = await this.tableRows.count();
-    Logger.info(`Total rows in table: ${rowCount}`);
-    
-    for (let i = 0; i < rowCount; i++) {
-      const row = this.tableRows.nth(i);
-      
-      // Check if this is a section header row (has colspan)
-      const hasColspan = await row.locator('td[colspan]').count() > 0;
-      if (hasColspan) {
-        continue; // Skip section header rows
-      }
-      
-      // Supplier is in the third column
-      const supplierCell = row.locator('td:nth-child(3) span[title]');
+    const trigger = await this._getSupplierFilterTrigger();
+    await trigger.click();
+    await this.page.waitForTimeout(600);
 
-      try {
-        const supplierText = await supplierCell.getAttribute('title');
-        
-        if (supplierText && supplierText.trim() === supplierName) {
-          Logger.info(`Found row with Supplier "${supplierName}" at row index ${i}`);
-          return true;
-        }
-      } catch (error) {
-        // cell not found in this row — continue
-        continue;
-      }
+    await this._clickSelectOption(supplierName);
+    Logger.info(`Applied supplier filter: "${supplierName}"`);
+
+    await this._waitForTableToFilter();
+
+    const found = await this._tableHasDataRows();
+
+    await this._resetSupplierFilter(trigger);
+
+    if (!found) {
+      Logger.warning(`No rows visible after filtering by supplier "${supplierName}"`);
     }
-    
-    Logger.warning(`No rows found with Supplier "${supplierName}" among ${rowCount} rows`);
-    return false;
+    return found;
   }
 
   /**
-   * Check whether a SKU Master Rate entry exists in the table
-   * @param skuName - SKU name
-   * @param supplierName - Supplier name
+   * Filter by supplier then scan the (now small) table for a specific SKU.
    */
   async rateExistsInTable(skuName: string, supplierName: string): Promise<boolean> {
-    const row = await this.getRowBySkuAndSupplier(skuName, supplierName);
-    return row !== null;
+    Logger.info(`Filtering by supplier "${supplierName}" then looking for SKU "${skuName}"`);
+
+    const trigger = await this._getSupplierFilterTrigger();
+    await trigger.click();
+    await this.page.waitForTimeout(600);
+
+    await this._clickSelectOption(supplierName);
+    await this._waitForTableToFilter();
+
+    const rows = this.page.locator(
+      'table[data-testid="data-grid"] tbody tr:not(:has(td[colspan]))'
+    );
+    const rowCount = await rows.count();
+    Logger.info(`Filtered table has ${rowCount} rows for supplier "${supplierName}"`);
+
+    let found = false;
+    for (let i = 0; i < rowCount; i++) {
+      const skuCell = rows.nth(i).locator('td:nth-child(2) span[title]');
+      try {
+        const skuText = await skuCell.getAttribute('title', { timeout: 1000 });
+        if (skuText && skuText.trim() === skuName) {
+          Logger.info(`Found SKU "${skuName}" at row ${i}`);
+          found = true;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    await this._resetSupplierFilter(trigger);
+
+    if (!found) {
+      Logger.warning(`SKU "${skuName}" not found in filtered table for supplier "${supplierName}"`);
+    }
+    return found;
   }
+}
+
+// ===== UTILITY =====
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
